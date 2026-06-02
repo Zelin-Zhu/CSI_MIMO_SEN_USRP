@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+import argparse, json
+from pathlib import Path
+from gnuradio import blocks, gr, uhd
+from csi_probe_common import CFG, ProbeConfig, save_probe_metadata
+
+class DualRxCapture(gr.top_block):
+    def __init__(self, args: str, freq: float, rate: float, gain: float, antenna: str, seconds: float, out_dir: Path, probe_rate: float, tx_scale: float):
+        super().__init__("2xRX raw IQ capture")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        total_samples = int(round(seconds * rate))
+        self.usrp = uhd.usrp_source(args, uhd.stream_args(cpu_format="fc32", otw_format="", channels=[0, 1]))
+        self.usrp.set_samp_rate(rate)
+        for ch in (0, 1):
+            self.usrp.set_center_freq(freq, ch)
+            self.usrp.set_gain(gain, ch)
+            self.usrp.set_antenna(antenna, ch)
+        self.head0 = blocks.head(gr.sizeof_gr_complex, total_samples)
+        self.head1 = blocks.head(gr.sizeof_gr_complex, total_samples)
+        self.file0 = blocks.file_sink(gr.sizeof_gr_complex, str(out_dir / "rx0.fc32"), False)
+        self.file1 = blocks.file_sink(gr.sizeof_gr_complex, str(out_dir / "rx1.fc32"), False)
+        self.connect((self.usrp, 0), self.head0, self.file0)
+        self.connect((self.usrp, 1), self.head1, self.file1)
+        cfg = {"uhd_args": args, "center_freq": freq, "sample_rate": rate, "rx_gain_db": gain,
+               "rx_antenna": antenna, "seconds": seconds, "total_samples_per_channel": total_samples,
+               "dtype": "complex64"}
+        (out_dir / "capture_config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+        probe_cfg = ProbeConfig(sample_rate=rate, center_freq=freq, fft_len=CFG.fft_len, cp_len=CFG.cp_len,
+                                probe_rate_hz=probe_rate, tx_scale=tx_scale, seed=CFG.seed)
+        save_probe_metadata(out_dir / "probe_metadata.json", probe_cfg)
+        print(f"RX: {freq/1e6:.6f} MHz, {rate/1e6:.3f} MS/s, gain={gain:.1f} dB, duration={seconds:.1f}s, out={out_dir}")
+
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument("--args", default="", help='UHD args, e.g. "serial=YYYYYYYY"')
+    p.add_argument("--freq", type=float, default=CFG.center_freq)
+    p.add_argument("--rate", type=float, default=CFG.sample_rate)
+    p.add_argument("--gain", type=float, default=20.0)
+    p.add_argument("--antenna", default="RX2")
+    p.add_argument("--seconds", type=float, default=60.0)
+    p.add_argument("--out-dir", type=Path, default=Path("capture_001"))
+    p.add_argument("--probe-rate", type=float, default=CFG.probe_rate_hz)
+    p.add_argument("--tx-scale", type=float, default=CFG.tx_scale)
+    return p.parse_args()
+
+def main():
+    a = parse_args(); tb = DualRxCapture(a.args, a.freq, a.rate, a.gain, a.antenna, a.seconds, a.out_dir, a.probe_rate, a.tx_scale)
+    print("Capturing raw IQ..."); tb.run(); print("Capture complete.")
+
+if __name__ == "__main__": main()
