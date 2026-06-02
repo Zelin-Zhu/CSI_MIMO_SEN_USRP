@@ -33,9 +33,9 @@
   },
   "tx": {
     "args": "serial=326F493",
-    "gain": 30.0,
+    "gain": 40.0,
     "antenna": "TX/RX",
     "probe_rate": 1000.0,
-    "tx_scale": 0.5
+    "tx_scale": 0.8
   }
 }
