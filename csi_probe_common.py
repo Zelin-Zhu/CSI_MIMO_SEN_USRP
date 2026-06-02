@@ -28,6 +28,28 @@ class ProbeConfig:
     def active_carriers(self) -> np.ndarray:
         return np.array(list(range(-26, 0)) + list(range(1, 27)), dtype=np.int32)
 
+    @property
+    def subcarrier_spacing_hz(self) -> float:
+        return self.sample_rate / self.fft_len
+
+    @property
+    def active_carrier_offsets_hz(self) -> np.ndarray:
+        return self.active_carriers.astype(np.float64) * self.subcarrier_spacing_hz
+
+    @property
+    def active_carrier_range_hz(self) -> tuple[float, float]:
+        offsets = self.active_carrier_offsets_hz
+        return float(np.min(offsets)), float(np.max(offsets))
+
+    @property
+    def active_carrier_center_span_hz(self) -> float:
+        low_hz, high_hz = self.active_carrier_range_hz
+        return high_hz - low_hz
+
+    @property
+    def active_carrier_edge_span_hz(self) -> float:
+        return self.active_carrier_center_span_hz + self.subcarrier_spacing_hz
+
 CFG = ProbeConfig()
 CONFIG_PATH = Path(__file__).with_name("usrp_config.json")
 

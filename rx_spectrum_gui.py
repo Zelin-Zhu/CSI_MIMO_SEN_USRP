@@ -29,7 +29,7 @@ from gnuradio import gr, qtgui, uhd
 from gnuradio.fft import window
 import sip
 
-from csi_probe_common import runtime_defaults
+from csi_probe_common import CFG, ProbeConfig, runtime_defaults
 
 
 class DualRxSpectrumViewer(gr.top_block, Qt.QWidget):
@@ -54,6 +54,7 @@ class DualRxSpectrumViewer(gr.top_block, Qt.QWidget):
         self.gain = gain
         self.antenna = antenna
         self.fft_size = fft_size
+        self.probe_config = self._make_probe_config(center_freq, sample_rate)
 
         root_layout = Qt.QVBoxLayout(self)
         controls_layout = Qt.QGridLayout()
@@ -61,8 +62,10 @@ class DualRxSpectrumViewer(gr.top_block, Qt.QWidget):
 
         self.freq_label = Qt.QLabel()
         self.gain_label = Qt.QLabel()
+        self.subcarrier_label = Qt.QLabel()
         controls_layout.addWidget(self.freq_label, 0, 0)
         controls_layout.addWidget(self.gain_label, 1, 0)
+        controls_layout.addWidget(self.subcarrier_label, 2, 0, 1, 2)
 
         self.freq_slider = Qt.QSlider(Qt.Qt.Horizontal)
         self.freq_slider.setMinimum(50)
@@ -141,14 +144,52 @@ class DualRxSpectrumViewer(gr.top_block, Qt.QWidget):
         print(f"  sample rate     : {sample_rate / 1e6:.3f} MS/s")
         print(f"  gain            : {gain:.1f} dB")
         print(f"  antenna         : {antenna}")
+        print(f"  OFDM FFT length : {self.probe_config.fft_len}")
+        print(f"  subcarrier space: {self.probe_config.subcarrier_spacing_hz / 1e3:.3f} kHz")
+        print(
+            "  active carriers : "
+            f"{int(self.probe_config.active_carriers[0])}..-1, "
+            f"1..{int(self.probe_config.active_carriers[-1])} "
+            f"({len(self.probe_config.active_carriers)} carriers, DC excluded)"
+        )
+        low_hz, high_hz = self.probe_config.active_carrier_range_hz
+        print(
+            "  active RF span   : "
+            f"{(self.center_freq + low_hz) / 1e6:.6f}.."
+            f"{(self.center_freq + high_hz) / 1e6:.6f} MHz"
+        )
         print("  disk recording  : disabled")
 
+    def _make_probe_config(self, center_freq: float, sample_rate: float) -> ProbeConfig:
+        return ProbeConfig(
+            sample_rate=sample_rate,
+            center_freq=center_freq,
+            fft_len=CFG.fft_len,
+            cp_len=CFG.cp_len,
+            probe_rate_hz=CFG.probe_rate_hz,
+            tx_scale=CFG.tx_scale,
+            seed=CFG.seed,
+        )
+
     def _refresh_labels(self) -> None:
+        self.probe_config = self._make_probe_config(self.center_freq, self.sample_rate)
+        low_hz, high_hz = self.probe_config.active_carrier_range_hz
         self.freq_label.setText(
             f"Center frequency: {self.center_freq / 1e6:.3f} MHz "
-            f"(visible span: ±{self.sample_rate / 2e6:.3f} MHz)"
+            f"(visible span: +/-{self.sample_rate / 2e6:.3f} MHz)"
         )
         self.gain_label.setText(f"RX gain: {self.gain:.1f} dB")
+        self.subcarrier_label.setText(
+            "OFDM probe carriers: "
+            f"FFT={self.probe_config.fft_len}, "
+            f"active={len(self.probe_config.active_carriers)} "
+            f"[{int(self.probe_config.active_carriers[0])}..-1, "
+            f"1..{int(self.probe_config.active_carriers[-1])}], "
+            f"spacing={self.probe_config.subcarrier_spacing_hz / 1e3:.3f} kHz, "
+            f"offset={low_hz / 1e3:.3f}..{high_hz / 1e3:.3f} kHz, "
+            f"RF={((self.center_freq + low_hz) / 1e6):.6f}.."
+            f"{((self.center_freq + high_hz) / 1e6):.6f} MHz"
+        )
 
     def _on_freq_slider(self, value_mhz: int) -> None:
         self.set_center_freq(float(value_mhz) * 1e6)

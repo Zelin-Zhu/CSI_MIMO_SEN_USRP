@@ -47,7 +47,7 @@ Important fields:
   "rx_gui": {
     "args": "serial=3271260",
     "gain": 40.0,
-    "antenna": "RX2"
+    "antenna": "TX/RX"
   },
   "tx": {
     "args": "serial=326F493",
@@ -77,7 +77,7 @@ The RX script reads default parameters from `usrp_config.json`. You can still
 override them from the command line:
 
 ```bash
-python3 rx_spectrum_gui.py --args "serial=3271260" --freq 1800e6 --rate 1e6 --gain 40 --antenna RX2
+python3 rx_spectrum_gui.py --args "serial=3271260" --freq 1800e6 --rate 1e6 --gain 40 --antenna TX/RX
 ```
 
 ## 4. Start TX Second
@@ -99,7 +99,31 @@ Transmitting. Press Ctrl+C to stop.
 Now look at the RX GUI. You should see a power increase or repeated burst
 energy around the configured center frequency.
 
-## 5. Stop Scripts
+## 5. OFDM Subcarrier Display
+
+The RX GUI reads the OFDM probe configuration from `csi_probe_common.py`.
+
+Current default values:
+
+```text
+sample_rate = 1e6
+fft_len = 64
+subcarrier_spacing = sample_rate / fft_len = 15.625 kHz
+active_carriers = -26..-1 and 1..26
+active_carrier_offsets = -406.25 kHz..+406.25 kHz
+```
+
+With `freq = 1800e6`, the active carrier center range is:
+
+```text
+1799.593750 MHz..1800.406250 MHz
+```
+
+The GUI spectrum FFT size is only for display smoothing. It does not change the
+OFDM pilot subcarrier spacing. To change the CSI frequency grid, edit
+`fft_len` and `active_carriers` logic in `csi_probe_common.py`.
+
+## 6. Stop Scripts
 
 Stop TX in terminal 2:
 
@@ -115,12 +139,12 @@ Ctrl+C
 
 in terminal 1.
 
-## 6. If RX Does Not Change
+## 7. If RX Does Not Change
 
 Check these first:
 
 ```text
-RX antenna port: device 3271260, port RX2
+RX antenna port: device 3271260, port TX/RX
 TX antenna port: device 326F493, port TX/RX
 Center frequency: same value in RX and TX
 Sample rate: same value in RX and TX
@@ -137,18 +161,7 @@ For a stronger visible spectrum change, temporarily increase TX settings in
 }
 ```
 
-If the spectrum still does not move, try changing RX antenna from `RX2` to
-`TX/RX`:
-
-```json
-"rx_gui": {
-  "antenna": "TX/RX"
-}
-```
-
-Then restart the RX GUI.
-
-## 7. Optional: Capture IQ Instead Of GUI
+## 8. Optional: Capture IQ Instead Of GUI
 
 To record raw RX samples using the same config:
 
