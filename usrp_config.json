@@ -19,6 +19,16 @@
     "probe_rate": 1000.0,
     "tx_scale": 0.5
   },
+  "rx_monitor": {
+    "args": "serial=3271260",
+    "gain": 40.0,
+    "antenna": "TX/RX",
+    "buffer_seconds": 0.5,
+    "update_interval_ms": 250,
+    "threshold": 0.35,
+    "min_frame_ratio": 0.8,
+    "max_frames_display": 80
+  },
   "tx": {
     "args": "serial=326F493",
     "gain": 30.0,

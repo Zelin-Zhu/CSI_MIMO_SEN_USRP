@@ -66,11 +66,20 @@ DEFAULT_RUNTIME_CONFIG: dict[str, dict[str, Any]] = {
     },
     "rx_capture": {
         "gain": 20.0,
-        "antenna": "RX2",
+        "antenna": "TX/RX",
         "seconds": 60.0,
         "out_dir": "capture_001",
         "probe_rate": CFG.probe_rate_hz,
         "tx_scale": CFG.tx_scale,
+    },
+    "rx_monitor": {
+        "gain": 20.0,
+        "antenna": "TX/RX",
+        "buffer_seconds": 0.5,
+        "update_interval_ms": 250,
+        "threshold": 0.35,
+        "min_frame_ratio": 0.80,
+        "max_frames_display": 80,
     },
     "tx": {
         "gain": 10.0,

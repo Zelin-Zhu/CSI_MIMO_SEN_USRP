@@ -1,7 +1,8 @@
 # Linux Run Guide
 
-This guide shows how to start the RX spectrum GUI first, then start the TX
-probe, so the RX window can show the received power change after TX starts.
+This guide shows how to start the RX monitor first, then start the TX probe.
+Use the realtime CSI monitor for parameter tuning, then capture longer IQ data
+after frame detection is stable.
 
 ## 1. Check USRP Devices
 
@@ -64,6 +65,75 @@ frontend.
 
 ## 3. Start RX First
 
+For parameter tuning, start the realtime CSI monitor:
+
+```bash
+cd /path/to/CSI_MIMO_SEN_USRP
+python3 rx_csi_monitor_gui.py
+```
+
+Or use the launcher:
+
+```bash
+bash start_rx_monitor.sh
+```
+
+This monitor keeps only a short in-memory IQ buffer. It displays RX power,
+preamble correlation, detected frame rate, CFO, and CSI magnitude heatmaps.
+
+After the monitor looks stable, use `rx_capture_2ch.py` for long captures.
+
+The RX scripts read default parameters from `usrp_config.json`. You can still
+override them from the command line:
+
+```bash
+python3 rx_spectrum_gui.py --args "serial=3271260" --freq 1800e6 --rate 1e6 --gain 40 --antenna TX/RX
+```
+
+For the CSI monitor:
+
+```bash
+python3 rx_csi_monitor_gui.py --args "serial=3271260" --freq 1800e6 --rate 1e6 --gain 40 --antenna TX/RX --buffer-seconds 0.5 --threshold 0.35
+```
+
+Important monitor fields in `usrp_config.json`:
+
+```json
+"rx_monitor": {
+  "args": "serial=3271260",
+  "gain": 40.0,
+  "antenna": "TX/RX",
+  "buffer_seconds": 0.5,
+  "update_interval_ms": 250,
+  "threshold": 0.35,
+  "min_frame_ratio": 0.8,
+  "max_frames_display": 80
+}
+```
+
+Good signs in the monitor:
+
+```text
+corr max is clearly above threshold
+detected rate is close to tx probe_rate
+extracted frames is nonzero and stable
+CSI heatmaps are continuous rather than random noise
+```
+
+Bad signs:
+
+```text
+corr max stays below threshold
+detected rate is much lower than probe_rate
+extracted frames is often zero
+RX terminal reports frequent overflows
+```
+
+If detection is weak, first raise TX gain or `tx_scale`. If correlation is near
+but below threshold, reduce monitor threshold from `0.35` to `0.25` or `0.15`.
+
+## 3b. Raw Spectrum Viewer
+
 Open terminal 1:
 
 ```bash
@@ -71,14 +141,13 @@ cd /path/to/CSI_MIMO_SEN_USRP
 python3 rx_spectrum_gui.py
 ```
 
-Wait until the GUI window appears and the spectrum/waterfall starts updating.
-
-The RX script reads default parameters from `usrp_config.json`. You can still
-override them from the command line:
+Or use:
 
 ```bash
-python3 rx_spectrum_gui.py --args "serial=3271260" --freq 1800e6 --rate 1e6 --gain 40 --antenna TX/RX
+bash start_rx_gui.sh
 ```
+
+Wait until the GUI window appears and the spectrum/waterfall starts updating.
 
 ## 4. Start TX Second
 
@@ -87,6 +156,12 @@ Open terminal 2:
 ```bash
 cd /path/to/CSI_MIMO_SEN_USRP
 python3 tx_mimo_probe.py
+```
+
+Or use:
+
+```bash
+bash start_tx.sh
 ```
 
 After TX starts, terminal 2 should print something like:
@@ -183,3 +258,19 @@ The capture output directory is controlled by:
   "seconds": 60.0
 }
 ```
+
+For a quick 5-second capture followed by CSI extraction, keep TX running in
+another terminal and run:
+
+```bash
+bash capture_5s_and_extract.sh test_rx_5s
+```
+
+## Experiment results
+
+启动tx之前：
+
+![alt text](QQ_1780387814684.png)
+
+启动Tx之后：可以看到52个子载波对应频率的功率升高
+![alt text](QQ_1780387714227.png)
