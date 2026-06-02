@@ -1,0 +1,131 @@
+{
+  "capture_dir": "experiments\\03_5s_csi_extraction_analysis\\data\\test_rx_5s",
+  "H_shape": [
+    4993,
+    2,
+    2,
+    52
+  ],
+  "layout": "[frame, rx, tx, active_carrier]",
+  "center_freq_hz": 1800000000.0,
+  "sample_rate_hz": 1000000.0,
+  "probe_rate_hz": 1000.0,
+  "duration_s_from_frames": 4.993,
+  "active_carrier_count": 52,
+  "active_carriers": [
+    -26,
+    -25,
+    -24,
+    -23,
+    -22,
+    -21,
+    -20,
+    -19,
+    -18,
+    -17,
+    -16,
+    -15,
+    -14,
+    -13,
+    -12,
+    -11,
+    -10,
+    -9,
+    -8,
+    -7,
+    -6,
+    -5,
+    -4,
+    -3,
+    -2,
+    -1,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26
+  ],
+  "mean_amplitude_db_by_rx_tx": [
+    [
+      -43.57848358154297,
+      -48.126548767089844
+    ],
+    [
+      -42.886173248291016,
+      -40.44914627075195
+    ]
+  ],
+  "std_amplitude_db_by_rx_tx": [
+    [
+      4.073948383331299,
+      5.389801025390625
+    ],
+    [
+      2.565833806991577,
+      1.9029490947723389
+    ]
+  ],
+  "mean_cfo_hz_per_rx": [
+    -177.7183556891419,
+    -173.76069358405843
+  ],
+  "std_cfo_hz_per_rx": [
+    196.322109131802,
+    111.49059098316191
+  ],
+  "adjacent_frame_stability": {
+    "relative_complex_change_mean": 1.1280877590179443,
+    "relative_complex_change_median": 1.1239256858825684,
+    "relative_complex_change_p95": 1.3518540382385253,
+    "complex_correlation_mean": 0.7428189516067505,
+    "complex_correlation_median": 0.7753374576568604,
+    "complex_correlation_p05": 0.6276143431663513,
+    "mean_abs_amplitude_step_db": 3.729398012161255,
+    "median_abs_amplitude_step_db": 3.724151372909546,
+    "p95_abs_amplitude_step_db": 4.12974100112915,
+    "mean_abs_phase_step_rad": 1.1791962385177612,
+    "median_abs_phase_step_rad": 1.1689295768737793,
+    "p95_abs_phase_step_rad": 1.4853891193866728,
+    "mean_abs_amplitude_step_db_by_rx_tx": [
+      [
+        4.295542240142822,
+        5.783670902252197
+      ],
+      [
+        2.7592337131500244,
+        2.0791282653808594
+      ]
+    ],
+    "mean_abs_phase_step_rad_by_rx_tx": [
+      [
+        1.150852918624878,
+        1.4011023044586182
+      ],
+      [
+        1.0840320587158203,
+        1.0808002948760986
+      ]
+    ]
+  }
+}

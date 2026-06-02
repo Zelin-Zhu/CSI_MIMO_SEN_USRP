@@ -175,7 +175,7 @@ class CsiMonitorWindow(Qt.QWidget):
             seed=CFG.seed,
         )
         self.tx0, _, self.meta = make_waveforms(self.cfg)
-        self.template = self.tx0[: 2 * self.cfg.sym_len]
+        self.template = self.tx0[: int(self.meta.get("sync_training_len", 2 * self.cfg.sym_len))]
         self.pilot_freq = (
             np.array(self.meta["pilot_freq_real"], dtype=np.float32)
             + 1j * np.array(self.meta["pilot_freq_imag"], dtype=np.float32)
@@ -271,7 +271,8 @@ class CsiMonitorWindow(Qt.QWidget):
             sync_channel = "RX0"
         distance = int(round(self.min_frame_ratio * self.cfg.frame_len))
         peaks = self._find_peaks(metric, self.threshold, distance)
-        peaks = peaks[peaks + 4 * self.cfg.sym_len <= len(rx0)]
+        required_len = int(self.meta.get("tx1_pilot_offset", 3 * self.cfg.sym_len)) + self.cfg.sym_len
+        peaks = peaks[peaks + required_len <= len(rx0)]
         corr_max = float(np.max(metric)) if len(metric) else 0.0
         corr_mean = float(np.mean(metric)) if len(metric) else 0.0
 
@@ -279,8 +280,8 @@ class CsiMonitorWindow(Qt.QWidget):
         cfo_hz = []
         for start in peaks[-self.max_frames_display :]:
             try:
-                h0, w0 = extract_one_frame(rx0, int(start), self.cfg, self.pilot_freq)
-                h1, w1 = extract_one_frame(rx1, int(start), self.cfg, self.pilot_freq)
+                h0, w0 = extract_one_frame(rx0, int(start), self.cfg, self.pilot_freq, self.meta)
+                h1, w1 = extract_one_frame(rx1, int(start), self.cfg, self.pilot_freq, self.meta)
             except ValueError:
                 continue
             frames.append(np.stack([h0, h1], axis=0))

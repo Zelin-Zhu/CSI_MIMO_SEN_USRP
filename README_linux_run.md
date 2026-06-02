@@ -203,6 +203,33 @@ The GUI spectrum FFT size is only for display smoothing. It does not change the
 OFDM pilot subcarrier spacing. To change the CSI frequency grid, edit
 `fft_len` and `active_carriers` logic in `csi_probe_common.py`.
 
+## 5b. WiFi-Like Training Frame
+
+The probe frame uses a WiFi-like training layout:
+
+```text
+STF-like repeated short training
+LTF-like repeated long training
+TX0 pilot
+TX1 pilot
+guard
+```
+
+Current default layout at `rate=1e6` and `probe_rate=1000`:
+
+```text
+frame_len = 1000 samples
+short training = 160 samples
+long training = 160 samples
+TX0 pilot = 80 samples
+TX1 pilot = 80 samples
+guard = 520 samples
+```
+
+The training section is transmitted on both TX channels to improve frame
+detection. TX0 and TX1 pilots remain time-division multiplexed, so CSI can still
+be estimated as a 2x2 MIMO channel.
+
 ## 6. Stop Scripts
 
 Stop TX in terminal 2:
@@ -268,8 +295,20 @@ For a quick 5-second capture followed by CSI extraction, keep TX running in
 another terminal and run:
 
 ```bash
-bash capture_5s_and_extract.sh test_rx_5s
+bash capture_5s_and_extract.sh
 ```
+
+## 9. Experiment Output Layout
+
+Experiment evidence and data are organized under:
+
+```text
+experiments/01_rx_subcarrier_power
+experiments/02_frame_threshold_detection
+experiments/03_5s_csi_extraction_analysis
+```
+
+The root directory keeps shared scripts and config files.
 
 ## Experiment results
 
