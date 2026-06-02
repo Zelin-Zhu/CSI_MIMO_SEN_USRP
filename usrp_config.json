@@ -1,0 +1,29 @@
+{
+  "radio": {
+    "args": "",
+    "freq": 1800000000.0,
+    "rate": 1000000.0
+  },
+  "rx_gui": {
+    "args": "serial=3271260",
+    "gain": 40.0,
+    "antenna": "RX2",
+    "fft_size": 2048
+  },
+  "rx_capture": {
+    "args": "serial=3271260",
+    "gain": 40.0,
+    "antenna": "RX2",
+    "seconds": 60.0,
+    "out_dir": "capture_001",
+    "probe_rate": 1000.0,
+    "tx_scale": 0.5
+  },
+  "tx": {
+    "args": "serial=326F493",
+    "gain": 30.0,
+    "antenna": "TX/RX",
+    "probe_rate": 1000.0,
+    "tx_scale": 0.5
+  }
+}

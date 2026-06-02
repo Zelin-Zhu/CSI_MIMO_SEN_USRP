@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 import json
 from pathlib import Path
+from typing import Any
 import numpy as np
 
 @dataclass(frozen=True)
@@ -28,6 +29,57 @@ class ProbeConfig:
         return np.array(list(range(-26, 0)) + list(range(1, 27)), dtype=np.int32)
 
 CFG = ProbeConfig()
+CONFIG_PATH = Path(__file__).with_name("usrp_config.json")
+
+DEFAULT_RUNTIME_CONFIG: dict[str, dict[str, Any]] = {
+    "radio": {
+        "args": "",
+        "freq": CFG.center_freq,
+        "rate": CFG.sample_rate,
+    },
+    "rx_gui": {
+        "gain": 20.0,
+        "antenna": "TX/RX",
+        "fft_size": 2048,
+    },
+    "rx_capture": {
+        "gain": 20.0,
+        "antenna": "RX2",
+        "seconds": 60.0,
+        "out_dir": "capture_001",
+        "probe_rate": CFG.probe_rate_hz,
+        "tx_scale": CFG.tx_scale,
+    },
+    "tx": {
+        "gain": 10.0,
+        "antenna": "TX/RX",
+        "probe_rate": CFG.probe_rate_hz,
+        "tx_scale": CFG.tx_scale,
+    },
+}
+
+
+def load_runtime_config(path: str | Path = CONFIG_PATH) -> dict[str, Any]:
+    merged: dict[str, Any] = {
+        section: values.copy() for section, values in DEFAULT_RUNTIME_CONFIG.items()
+    }
+    config_path = Path(path)
+    if not config_path.exists():
+        return merged
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    for section, values in config.items():
+        if isinstance(values, dict) and isinstance(merged.get(section), dict):
+            merged[section].update(values)
+        else:
+            merged[section] = values
+    return merged
+
+
+def runtime_defaults(section: str, path: str | Path = CONFIG_PATH) -> dict[str, Any]:
+    config = load_runtime_config(path)
+    defaults = dict(config.get("radio", {}))
+    defaults.update(config.get(section, {}))
+    return defaults
 
 def _freq_vector(values: np.ndarray, cfg: ProbeConfig = CFG) -> np.ndarray:
     freq = np.zeros(cfg.fft_len, dtype=np.complex64)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse, json
 from pathlib import Path
 from gnuradio import blocks, gr, uhd
-from csi_probe_common import CFG, ProbeConfig, save_probe_metadata
+from csi_probe_common import CFG, ProbeConfig, save_probe_metadata, runtime_defaults
 
 class DualRxCapture(gr.top_block):
     def __init__(self, args: str, freq: float, rate: float, gain: float, antenna: str, seconds: float, out_dir: Path, probe_rate: float, tx_scale: float):
@@ -32,16 +32,17 @@ class DualRxCapture(gr.top_block):
         print(f"RX: {freq/1e6:.6f} MHz, {rate/1e6:.3f} MS/s, gain={gain:.1f} dB, duration={seconds:.1f}s, out={out_dir}")
 
 def parse_args():
+    defaults = runtime_defaults("rx_capture")
     p = argparse.ArgumentParser()
-    p.add_argument("--args", default="", help='UHD args, e.g. "serial=YYYYYYYY"')
-    p.add_argument("--freq", type=float, default=CFG.center_freq)
-    p.add_argument("--rate", type=float, default=CFG.sample_rate)
-    p.add_argument("--gain", type=float, default=20.0)
-    p.add_argument("--antenna", default="RX2")
-    p.add_argument("--seconds", type=float, default=60.0)
-    p.add_argument("--out-dir", type=Path, default=Path("capture_001"))
-    p.add_argument("--probe-rate", type=float, default=CFG.probe_rate_hz)
-    p.add_argument("--tx-scale", type=float, default=CFG.tx_scale)
+    p.add_argument("--args", default=defaults["args"], help='UHD args, e.g. "serial=YYYYYYYY"')
+    p.add_argument("--freq", type=float, default=float(defaults["freq"]))
+    p.add_argument("--rate", type=float, default=float(defaults["rate"]))
+    p.add_argument("--gain", type=float, default=float(defaults["gain"]))
+    p.add_argument("--antenna", default=str(defaults["antenna"]))
+    p.add_argument("--seconds", type=float, default=float(defaults["seconds"]))
+    p.add_argument("--out-dir", type=Path, default=Path(defaults["out_dir"]))
+    p.add_argument("--probe-rate", type=float, default=float(defaults["probe_rate"]))
+    p.add_argument("--tx-scale", type=float, default=float(defaults["tx_scale"]))
     return p.parse_args()
 
 def main():

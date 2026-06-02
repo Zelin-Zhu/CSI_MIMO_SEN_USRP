@@ -29,6 +29,8 @@ from gnuradio import gr, qtgui, uhd
 from gnuradio.fft import window
 import sip
 
+from csi_probe_common import runtime_defaults
+
 
 class DualRxSpectrumViewer(gr.top_block, Qt.QWidget):
     def __init__(
@@ -175,17 +177,18 @@ class DualRxSpectrumViewer(gr.top_block, Qt.QWidget):
 
 
 def parse_args() -> argparse.Namespace:
+    defaults = runtime_defaults("rx_gui")
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--args",
-        default="",
+        default=defaults["args"],
         help='UHD device args, for example: "serial=3271260"',
     )
-    parser.add_argument("--freq", type=float, default=1800e6)
-    parser.add_argument("--rate", type=float, default=1e6)
-    parser.add_argument("--gain", type=float, default=20.0)
-    parser.add_argument("--antenna", default="TX/RX")
-    parser.add_argument("--fft-size", type=int, default=2048)
+    parser.add_argument("--freq", type=float, default=float(defaults["freq"]))
+    parser.add_argument("--rate", type=float, default=float(defaults["rate"]))
+    parser.add_argument("--gain", type=float, default=float(defaults["gain"]))
+    parser.add_argument("--antenna", default=str(defaults["antenna"]))
+    parser.add_argument("--fft-size", type=int, default=int(defaults["fft_size"]))
     return parser.parse_args()
 
 

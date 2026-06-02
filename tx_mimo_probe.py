@@ -2,7 +2,7 @@
 from __future__ import annotations
 import argparse, signal, sys, time
 from gnuradio import blocks, gr, uhd
-from csi_probe_common import CFG, ProbeConfig, make_waveforms
+from csi_probe_common import CFG, ProbeConfig, make_waveforms, runtime_defaults
 
 class MimoProbeTx(gr.top_block):
     def __init__(self, args: str, freq: float, rate: float, gain: float, antenna: str,
@@ -25,14 +25,15 @@ class MimoProbeTx(gr.top_block):
         print(f"TX: {freq/1e6:.6f} MHz, {rate/1e6:.3f} MS/s, probe={probe_rate:.1f} Hz, gain={gain:.1f} dB, frame={meta['frame_len']} samples")
 
 def parse_args():
+    defaults = runtime_defaults("tx")
     p = argparse.ArgumentParser()
-    p.add_argument("--args", default="", help='UHD args, e.g. "serial=XXXXXXXX"')
-    p.add_argument("--freq", type=float, default=CFG.center_freq)
-    p.add_argument("--rate", type=float, default=CFG.sample_rate)
-    p.add_argument("--gain", type=float, default=10.0)
-    p.add_argument("--antenna", default="TX/RX")
-    p.add_argument("--probe-rate", type=float, default=CFG.probe_rate_hz)
-    p.add_argument("--tx-scale", type=float, default=CFG.tx_scale)
+    p.add_argument("--args", default=defaults["args"], help='UHD args, e.g. "serial=XXXXXXXX"')
+    p.add_argument("--freq", type=float, default=float(defaults["freq"]))
+    p.add_argument("--rate", type=float, default=float(defaults["rate"]))
+    p.add_argument("--gain", type=float, default=float(defaults["gain"]))
+    p.add_argument("--antenna", default=str(defaults["antenna"]))
+    p.add_argument("--probe-rate", type=float, default=float(defaults["probe_rate"]))
+    p.add_argument("--tx-scale", type=float, default=float(defaults["tx_scale"]))
     return p.parse_args()
 
 def main():
