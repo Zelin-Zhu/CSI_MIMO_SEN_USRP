@@ -107,7 +107,9 @@ Important monitor fields in `usrp_config.json`:
   "update_interval_ms": 250,
   "threshold": 0.35,
   "min_frame_ratio": 0.8,
-  "max_frames_display": 80
+  "max_frames_display": 80,
+  "probe_rate": 1000.0,
+  "tx_scale": 0.5
 }
 ```
 
@@ -127,10 +129,13 @@ corr max stays below threshold
 detected rate is much lower than probe_rate
 extracted frames is often zero
 RX terminal reports frequent overflows
+TX terminal reports frequent underflows or cmd time errors
 ```
 
 If detection is weak, first raise TX gain or `tx_scale`. If correlation is near
 but below threshold, reduce monitor threshold from `0.35` to `0.25` or `0.15`.
+If TX underflows continue, reduce sample rate, close extra GUI windows, and make
+sure the B210 is connected through USB 3.0 with reliable host scheduling.
 
 ## 3b. Raw Spectrum Viewer
 

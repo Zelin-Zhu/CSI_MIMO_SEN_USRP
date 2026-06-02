@@ -27,7 +27,9 @@
     "update_interval_ms": 250,
     "threshold": 0.35,
     "min_frame_ratio": 0.8,
-    "max_frames_display": 80
+    "max_frames_display": 80,
+    "probe_rate": 1000.0,
+    "tx_scale": 0.5
   },
   "tx": {
     "args": "serial=326F493",

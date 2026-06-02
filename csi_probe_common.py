@@ -80,6 +80,8 @@ DEFAULT_RUNTIME_CONFIG: dict[str, dict[str, Any]] = {
         "threshold": 0.35,
         "min_frame_ratio": 0.80,
         "max_frames_display": 80,
+        "probe_rate": CFG.probe_rate_hz,
+        "tx_scale": CFG.tx_scale,
     },
     "tx": {
         "gain": 10.0,

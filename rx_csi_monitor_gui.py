@@ -153,6 +153,8 @@ class CsiMonitorWindow(Qt.QWidget):
         threshold: float,
         min_frame_ratio: float,
         max_frames_display: int,
+        probe_rate: float,
+        tx_scale: float,
     ):
         super().__init__()
         self.setWindowTitle("USRP B210 realtime CSI monitor")
@@ -168,8 +170,8 @@ class CsiMonitorWindow(Qt.QWidget):
             center_freq=center_freq,
             fft_len=CFG.fft_len,
             cp_len=CFG.cp_len,
-            probe_rate_hz=CFG.probe_rate_hz,
-            tx_scale=CFG.tx_scale,
+            probe_rate_hz=probe_rate,
+            tx_scale=tx_scale,
             seed=CFG.seed,
         )
         self.tx0, _, self.meta = make_waveforms(self.cfg)
@@ -244,6 +246,7 @@ class CsiMonitorWindow(Qt.QWidget):
             f"rate={self.sample_rate / 1e6:.3f} MS/s, gain={gain:.1f} dB, antenna={antenna}, "
             f"buffer={buffer_seconds:.2f}s\n"
             f"OFDM FFT={self.cfg.fft_len}, active carriers={len(self.cfg.active_carriers)}, "
+            f"probe_rate={self.cfg.probe_rate_hz:.1f} Hz, tx_scale={self.cfg.tx_scale:.2f}, "
             f"spacing={self.cfg.subcarrier_spacing_hz / 1e3:.3f} kHz, "
             f"RF active span={(self.center_freq + low_hz) / 1e6:.6f}.."
             f"{(self.center_freq + high_hz) / 1e6:.6f} MHz"
@@ -256,7 +259,16 @@ class CsiMonitorWindow(Qt.QWidget):
             self.status_label.setText(self.static_text + "\nWaiting for buffer...")
             return
 
-        metric = normalized_corr_metric(rx0, self.template)
+        metric0 = normalized_corr_metric(rx0, self.template)
+        metric1 = normalized_corr_metric(rx1, self.template)
+        metric0_max = float(np.max(metric0)) if len(metric0) else 0.0
+        metric1_max = float(np.max(metric1)) if len(metric1) else 0.0
+        if metric1_max > metric0_max:
+            metric = metric1
+            sync_channel = "RX1"
+        else:
+            metric = metric0
+            sync_channel = "RX0"
         distance = int(round(self.min_frame_ratio * self.cfg.frame_len))
         peaks = self._find_peaks(metric, self.threshold, distance)
         peaks = peaks[peaks + 4 * self.cfg.sym_len <= len(rx0)]
@@ -297,7 +309,8 @@ class CsiMonitorWindow(Qt.QWidget):
             self.static_text
             + "\n"
             + f"RX power RX0/RX1={rx0_db:.1f}/{rx1_db:.1f} dBFS, "
-            + f"corr max/mean={corr_max:.3f}/{corr_mean:.3f}, "
+            + f"corr max RX0/RX1={metric0_max:.3f}/{metric1_max:.3f}, "
+            + f"sync={sync_channel}, corr mean={corr_mean:.3f}, "
             + f"threshold={self.threshold:.2f}, frames={len(peaks)}/{expected:.1f}, "
             + f"detected rate={detected_rate:.1f} Hz, extracted={len(frames)}, {cfo_text}"
         )
@@ -324,6 +337,7 @@ class CsiMonitorWindow(Qt.QWidget):
 
 def parse_args() -> argparse.Namespace:
     defaults = runtime_defaults("rx_monitor")
+    tx_defaults = runtime_defaults("tx")
     parser = argparse.ArgumentParser()
     parser.add_argument("--args", default=defaults["args"], help='UHD args, e.g. "serial=3271260"')
     parser.add_argument("--freq", type=float, default=float(defaults["freq"]))
@@ -335,6 +349,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--threshold", type=float, default=float(defaults["threshold"]))
     parser.add_argument("--min-frame-ratio", type=float, default=float(defaults["min_frame_ratio"]))
     parser.add_argument("--max-frames-display", type=int, default=int(defaults["max_frames_display"]))
+    parser.add_argument("--probe-rate", type=float, default=float(defaults.get("probe_rate", tx_defaults["probe_rate"])))
+    parser.add_argument("--tx-scale", type=float, default=float(defaults.get("tx_scale", tx_defaults["tx_scale"])))
     return parser.parse_args()
 
 
@@ -352,6 +368,8 @@ def main() -> None:
         threshold=args.threshold,
         min_frame_ratio=args.min_frame_ratio,
         max_frames_display=args.max_frames_display,
+        probe_rate=args.probe_rate,
+        tx_scale=args.tx_scale,
     )
     window.start()
     window.show()
