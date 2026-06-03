@@ -1,2 +1,5 @@
 __pycache__/
 *.py[cod]
+
+# Large extracted CSI matrices are local experiment artifacts.
+experiments/**/H.npy
