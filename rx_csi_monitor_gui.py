@@ -155,6 +155,7 @@ class CsiMonitorWindow(Qt.QWidget):
         max_frames_display: int,
         probe_rate: float,
         tx_scale: float,
+        pilot_repeats_per_tx: int,
     ):
         super().__init__()
         self.setWindowTitle("USRP B210 realtime CSI monitor")
@@ -172,6 +173,7 @@ class CsiMonitorWindow(Qt.QWidget):
             cp_len=CFG.cp_len,
             probe_rate_hz=probe_rate,
             tx_scale=tx_scale,
+            pilot_repeats_per_tx=pilot_repeats_per_tx,
             seed=CFG.seed,
         )
         self.tx0, _, self.meta = make_waveforms(self.cfg)
@@ -247,6 +249,7 @@ class CsiMonitorWindow(Qt.QWidget):
             f"buffer={buffer_seconds:.2f}s\n"
             f"OFDM FFT={self.cfg.fft_len}, active carriers={len(self.cfg.active_carriers)}, "
             f"probe_rate={self.cfg.probe_rate_hz:.1f} Hz, tx_scale={self.cfg.tx_scale:.2f}, "
+            f"pilot_repeats_per_tx={self.cfg.pilot_repeats_per_tx}, "
             f"spacing={self.cfg.subcarrier_spacing_hz / 1e3:.3f} kHz, "
             f"RF active span={(self.center_freq + low_hz) / 1e6:.6f}.."
             f"{(self.center_freq + high_hz) / 1e6:.6f} MHz"
@@ -271,7 +274,10 @@ class CsiMonitorWindow(Qt.QWidget):
             sync_channel = "RX0"
         distance = int(round(self.min_frame_ratio * self.cfg.frame_len))
         peaks = self._find_peaks(metric, self.threshold, distance)
-        required_len = int(self.meta.get("tx1_pilot_offset", 3 * self.cfg.sym_len)) + self.cfg.sym_len
+        if "tx1_pilot_offsets" in self.meta:
+            required_len = max(int(x) for x in self.meta["tx1_pilot_offsets"]) + self.cfg.sym_len
+        else:
+            required_len = int(self.meta.get("tx1_pilot_offset", 3 * self.cfg.sym_len)) + self.cfg.sym_len
         peaks = peaks[peaks + required_len <= len(rx0)]
         corr_max = float(np.max(metric)) if len(metric) else 0.0
         corr_mean = float(np.mean(metric)) if len(metric) else 0.0
@@ -352,6 +358,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-frames-display", type=int, default=int(defaults["max_frames_display"]))
     parser.add_argument("--probe-rate", type=float, default=float(defaults.get("probe_rate", tx_defaults["probe_rate"])))
     parser.add_argument("--tx-scale", type=float, default=float(defaults.get("tx_scale", tx_defaults["tx_scale"])))
+    parser.add_argument(
+        "--pilot-repeats-per-tx",
+        type=int,
+        default=int(defaults.get("pilot_repeats_per_tx", tx_defaults["pilot_repeats_per_tx"])),
+    )
     return parser.parse_args()
 
 
@@ -371,6 +382,7 @@ def main() -> None:
         max_frames_display=args.max_frames_display,
         probe_rate=args.probe_rate,
         tx_scale=args.tx_scale,
+        pilot_repeats_per_tx=args.pilot_repeats_per_tx,
     )
     window.start()
     window.show()

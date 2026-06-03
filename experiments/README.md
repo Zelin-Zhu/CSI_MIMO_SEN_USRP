@@ -6,6 +6,7 @@ The experiment outputs are organized by validation stage:
 01_rx_subcarrier_power/
 02_frame_threshold_detection/
 03_5s_csi_extraction_analysis/
+04_wifi_like_csi_estimation/
 ```
 
 The root directory keeps reusable scripts and shared configuration. Experiment

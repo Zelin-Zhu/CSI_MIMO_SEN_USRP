@@ -2,7 +2,7 @@
   "radio": {
     "args": "",
     "freq": 1800000000.0,
-    "rate": 1000000.0
+    "rate": 2000000.0
   },
   "rx_gui": {
     "args": "serial=3271260",
@@ -17,7 +17,8 @@
     "seconds": 60.0,
     "out_dir": "capture_001",
     "probe_rate": 1000.0,
-    "tx_scale": 0.5
+    "tx_scale": 0.5,
+    "pilot_repeats_per_tx": 4
   },
   "rx_monitor": {
     "args": "serial=3271260",
@@ -29,13 +30,15 @@
     "min_frame_ratio": 0.8,
     "max_frames_display": 80,
     "probe_rate": 1000.0,
-    "tx_scale": 0.5
+    "tx_scale": 0.5,
+    "pilot_repeats_per_tx": 4
   },
   "tx": {
     "args": "serial=326F493",
     "gain": 40.0,
     "antenna": "TX/RX",
     "probe_rate": 1000.0,
-    "tx_scale": 0.8
+    "tx_scale": 0.8,
+    "pilot_repeats_per_tx": 4
   }
 }

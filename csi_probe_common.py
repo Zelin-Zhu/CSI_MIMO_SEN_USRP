@@ -8,12 +8,13 @@ import numpy as np
 
 @dataclass(frozen=True)
 class ProbeConfig:
-    sample_rate: float = 1e6
+    sample_rate: float = 2e6
     center_freq: float = 1800e6  # Change to a locally permitted RF frequency.
     fft_len: int = 64
     cp_len: int = 16
     probe_rate_hz: float = 50.0
     tx_scale: float = 0.20
+    pilot_repeats_per_tx: int = 4
     seed: int = 20260602
 
     @property
@@ -74,6 +75,7 @@ DEFAULT_RUNTIME_CONFIG: dict[str, dict[str, Any]] = {
         "out_dir": "capture_001",
         "probe_rate": CFG.probe_rate_hz,
         "tx_scale": CFG.tx_scale,
+        "pilot_repeats_per_tx": CFG.pilot_repeats_per_tx,
     },
     "rx_monitor": {
         "gain": 20.0,
@@ -85,12 +87,14 @@ DEFAULT_RUNTIME_CONFIG: dict[str, dict[str, Any]] = {
         "max_frames_display": 80,
         "probe_rate": CFG.probe_rate_hz,
         "tx_scale": CFG.tx_scale,
+        "pilot_repeats_per_tx": CFG.pilot_repeats_per_tx,
     },
     "tx": {
         "gain": 10.0,
         "antenna": "TX/RX",
         "probe_rate": CFG.probe_rate_hz,
         "tx_scale": CFG.tx_scale,
+        "pilot_repeats_per_tx": CFG.pilot_repeats_per_tx,
     },
 }
 
@@ -158,6 +162,8 @@ def _short_training(cfg: ProbeConfig = CFG) -> np.ndarray:
 
 
 def make_waveforms(cfg: ProbeConfig = CFG):
+    if cfg.pilot_repeats_per_tx < 1:
+        raise ValueError("pilot_repeats_per_tx must be at least 1")
     rng = np.random.default_rng(cfg.seed)
     k = len(cfg.active_carriers)
     training_values = _training_values(cfg)
@@ -179,7 +185,6 @@ def make_waveforms(cfg: ProbeConfig = CFG):
     training_useful = (digital_scale * training_useful_raw).astype(np.complex64)
     pilot_useful = (digital_scale * pilot_useful_raw).astype(np.complex64)
     pilot_symbol = _with_cp(pilot_useful, cfg)
-    zero_symbol = np.zeros(cfg.sym_len, dtype=np.complex64)
     long_training = np.concatenate(
         [
             training_useful[-LONG_TRAINING_CP_LEN:],
@@ -189,14 +194,25 @@ def make_waveforms(cfg: ProbeConfig = CFG):
     ).astype(np.complex64)
     sync_training = np.concatenate([short_training, long_training]).astype(np.complex64)
     tx0_pilot_offset = len(sync_training)
-    tx1_pilot_offset = tx0_pilot_offset + cfg.sym_len
-    occupied = len(sync_training) + 2 * cfg.sym_len
+    tx0_pilot_offsets = [
+        tx0_pilot_offset + repeat * cfg.sym_len
+        for repeat in range(cfg.pilot_repeats_per_tx)
+    ]
+    tx1_pilot_offset = tx0_pilot_offset + cfg.pilot_repeats_per_tx * cfg.sym_len
+    tx1_pilot_offsets = [
+        tx1_pilot_offset + repeat * cfg.sym_len
+        for repeat in range(cfg.pilot_repeats_per_tx)
+    ]
+    occupied = len(sync_training) + 2 * cfg.pilot_repeats_per_tx * cfg.sym_len
     guard_len = cfg.frame_len - occupied
     if guard_len < 0:
         raise ValueError(f"Probe period too short: frame_len={cfg.frame_len}, occupied={occupied}")
     guard = np.zeros(guard_len, dtype=np.complex64)
-    tx0 = np.concatenate([sync_training, pilot_symbol, zero_symbol, guard]).astype(np.complex64)
-    tx1 = np.concatenate([sync_training, zero_symbol, pilot_symbol, guard]).astype(np.complex64)
+    tx0_pilots = np.tile(pilot_symbol, cfg.pilot_repeats_per_tx).astype(np.complex64)
+    tx1_pilots = np.tile(pilot_symbol, cfg.pilot_repeats_per_tx).astype(np.complex64)
+    zero_pilots = np.zeros(cfg.pilot_repeats_per_tx * cfg.sym_len, dtype=np.complex64)
+    tx0 = np.concatenate([sync_training, tx0_pilots, zero_pilots, guard]).astype(np.complex64)
+    tx1 = np.concatenate([sync_training, zero_pilots, tx1_pilots, guard]).astype(np.complex64)
     pilot_freq_scaled = (digital_scale * pilot_freq_raw).astype(np.complex64)
     training_freq_scaled = (digital_scale * training_freq_raw).astype(np.complex64)
     stf_len = len(short_training)
@@ -217,6 +233,9 @@ def make_waveforms(cfg: ProbeConfig = CFG):
         "ltf2_offset": ltf_start + LONG_TRAINING_CP_LEN + cfg.fft_len,
         "tx0_pilot_offset": tx0_pilot_offset,
         "tx1_pilot_offset": tx1_pilot_offset,
+        "tx0_pilot_offsets": tx0_pilot_offsets,
+        "tx1_pilot_offsets": tx1_pilot_offsets,
+        "pilot_repeats_per_tx": cfg.pilot_repeats_per_tx,
         "occupied_len": occupied,
         "guard_len": guard_len,
         "training_freq_real": training_freq_scaled.real.tolist(),

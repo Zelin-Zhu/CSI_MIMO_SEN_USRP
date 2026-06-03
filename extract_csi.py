@@ -34,15 +34,15 @@ def extract_one_frame(
     if "ltf1_offset" in meta and "ltf2_offset" in meta:
         ltf1_offset = int(meta["ltf1_offset"])
         ltf2_offset = int(meta["ltf2_offset"])
-        tx0_pilot_offset = int(meta["tx0_pilot_offset"])
-        tx1_pilot_offset = int(meta["tx1_pilot_offset"])
-        required_len = tx1_pilot_offset + s
+        tx0_pilot_offsets = [int(x) for x in meta.get("tx0_pilot_offsets", [meta["tx0_pilot_offset"]])]
+        tx1_pilot_offsets = [int(x) for x in meta.get("tx1_pilot_offsets", [meta["tx1_pilot_offset"]])]
+        required_len = max(tx1_pilot_offsets) + s
         cfo_spacing = nfft
         a = rx[start + ltf1_offset:start + ltf1_offset + nfft]
         b = rx[start + ltf2_offset:start + ltf2_offset + nfft]
     else:
-        tx0_pilot_offset = 2 * s
-        tx1_pilot_offset = 3 * s
+        tx0_pilot_offsets = [2 * s]
+        tx1_pilot_offsets = [3 * s]
         required_len = 4 * s
         cfo_spacing = s
         a = rx[start + cp:start + cp + nfft]
@@ -53,8 +53,16 @@ def extract_one_frame(
     if len(seg) != required_len: raise ValueError("Truncated frame")
     idx = np.arange(len(seg), dtype=np.float64)
     seg = seg * np.exp(-1j * omega * idx)
-    y0 = np.fft.fft(seg[tx0_pilot_offset + cp:tx0_pilot_offset + cp + nfft])
-    y1 = np.fft.fft(seg[tx1_pilot_offset + cp:tx1_pilot_offset + cp + nfft])
+    y0_repeats = [
+        np.fft.fft(seg[offset + cp:offset + cp + nfft])
+        for offset in tx0_pilot_offsets
+    ]
+    y1_repeats = [
+        np.fft.fft(seg[offset + cp:offset + cp + nfft])
+        for offset in tx1_pilot_offsets
+    ]
+    y0 = np.mean(np.stack(y0_repeats, axis=0), axis=0)
+    y1 = np.mean(np.stack(y1_repeats, axis=0), axis=0)
     bins = np.array([int(k) % nfft for k in cfg.active_carriers], dtype=np.int32)
     x = pilot_freq[bins]
     return np.stack([y0[bins] / (x + 1e-12), y1[bins] / (x + 1e-12)], axis=0).astype(np.complex64), omega
@@ -64,6 +72,11 @@ def parse_args():
     p.add_argument("--capture-dir", type=Path, required=True)
     p.add_argument("--threshold", type=float, default=0.35)
     p.add_argument("--min-frame-ratio", type=float, default=0.80)
+    p.add_argument(
+        "--free-running-peaks",
+        action="store_true",
+        help="Use every detected peak. Default locks to the first peak and uses the fixed frame_len grid.",
+    )
     return p.parse_args()
 
 def main():
@@ -75,17 +88,32 @@ def main():
     meta0 = json.loads((cap / "probe_metadata.json").read_text())
     cfg = ProbeConfig(sample_rate=float(capture_cfg["sample_rate"]), center_freq=float(capture_cfg["center_freq"]),
                       fft_len=int(meta0["fft_len"]), cp_len=int(meta0["cp_len"]),
-                      probe_rate_hz=float(meta0["probe_rate_hz"]), tx_scale=float(meta0["tx_scale"]), seed=int(meta0["seed"]))
+                      probe_rate_hz=float(meta0["probe_rate_hz"]), tx_scale=float(meta0["tx_scale"]),
+                      pilot_repeats_per_tx=int(meta0.get("pilot_repeats_per_tx", 1)),
+                      seed=int(meta0["seed"]))
     if meta0.get("frame_format") == "wifi_like_stf_ltf_tdm_mimo":
         tx0, _, meta = make_waveforms(cfg)
         template = tx0[: int(meta["sync_training_len"])]
     else:
         meta = meta0
         template = legacy_preamble_template(meta0, cfg)
-    metric = normalized_corr_metric(rx0, template)
+    metric0 = normalized_corr_metric(rx0, template)
+    metric1 = normalized_corr_metric(rx1, template)
+    if float(np.max(metric1)) > float(np.max(metric0)):
+        metric = metric1
+        sync_channel = "rx1"
+    else:
+        metric = metric0
+        sync_channel = "rx0"
     peaks, _ = find_peaks(metric, height=a.threshold, distance=int(round(a.min_frame_ratio * cfg.frame_len)))
-    required_len = int(meta.get("tx1_pilot_offset", 3 * cfg.sym_len)) + cfg.sym_len
+    if "tx1_pilot_offsets" in meta:
+        required_len = max(int(x) for x in meta["tx1_pilot_offsets"]) + cfg.sym_len
+    else:
+        required_len = int(meta.get("tx1_pilot_offset", 3 * cfg.sym_len)) + cfg.sym_len
     peaks = peaks[peaks + required_len <= n]
+    if not a.free_running_peaks and len(peaks):
+        first = int(peaks[0])
+        peaks = np.arange(first, n - required_len + 1, cfg.frame_len, dtype=np.int64)
     pilot_freq = (np.array(meta["pilot_freq_real"], dtype=np.float32) + 1j * np.array(meta["pilot_freq_imag"], dtype=np.float32)).astype(np.complex64)
     frames, starts, cfo = [], [], []
     for start in peaks:
@@ -102,6 +130,10 @@ def main():
     cfo = np.asarray(cfo, dtype=np.float64) * cfg.sample_rate / (2 * np.pi)
     info = {"H_shape": list(H.shape), "layout": "[frame, rx, tx, active_carrier]", "active_carriers": cfg.active_carriers.tolist(),
             "frame_starts_samples": starts, "probe_rate_hz": cfg.probe_rate_hz,
+            "sync_channel": sync_channel,
+            "sync_metric_max_rx0": float(np.max(metric0)),
+            "sync_metric_max_rx1": float(np.max(metric1)),
+            "frame_start_mode": "free_running_peaks" if a.free_running_peaks else "fixed_grid_from_first_peak",
             "mean_cfo_hz_per_rx": np.mean(cfo, axis=0).tolist(), "std_cfo_hz_per_rx": np.std(cfo, axis=0).tolist(),
             "notes": ["Use abs(H) first.", "Do not assume single-link absolute phase is calibrated across frames.",
                       "A useful relative phase is angle(H[:,0,:,:] * conj(H[:,1,:,:]))."]}

@@ -1,7 +1,7 @@
 {
   "capture_dir": "experiments\\03_5s_csi_extraction_analysis\\data\\test_rx_5s",
   "H_shape": [
-    4993,
+    4999,
     2,
     2,
     52
@@ -10,7 +10,7 @@
   "center_freq_hz": 1800000000.0,
   "sample_rate_hz": 1000000.0,
   "probe_rate_hz": 1000.0,
-  "duration_s_from_frames": 4.993,
+  "duration_s_from_frames": 4.999,
   "active_carrier_count": 52,
   "active_carriers": [
     -26,
@@ -68,64 +68,206 @@
   ],
   "mean_amplitude_db_by_rx_tx": [
     [
-      -43.57848358154297,
-      -48.126548767089844
+      -37.33384704589844,
+      -37.40408706665039
     ],
     [
-      -42.886173248291016,
-      -40.44914627075195
+      -36.627498626708984,
+      -37.43934631347656
     ]
   ],
   "std_amplitude_db_by_rx_tx": [
     [
-      4.073948383331299,
-      5.389801025390625
+      5.564854145050049,
+      5.561402320861816
     ],
     [
-      2.565833806991577,
-      1.9029490947723389
+      3.3516881465911865,
+      4.218717098236084
     ]
   ],
   "mean_cfo_hz_per_rx": [
-    -177.7183556891419,
-    -173.76069358405843
+    -152.09627112081515,
+    -152.75673107230352
   ],
   "std_cfo_hz_per_rx": [
-    196.322109131802,
-    111.49059098316191
+    385.44899420610506,
+    68.47981390317663
   ],
   "adjacent_frame_stability": {
-    "relative_complex_change_mean": 1.1280877590179443,
-    "relative_complex_change_median": 1.1239256858825684,
-    "relative_complex_change_p95": 1.3518540382385253,
-    "complex_correlation_mean": 0.7428189516067505,
-    "complex_correlation_median": 0.7753374576568604,
-    "complex_correlation_p05": 0.6276143431663513,
-    "mean_abs_amplitude_step_db": 3.729398012161255,
-    "median_abs_amplitude_step_db": 3.724151372909546,
-    "p95_abs_amplitude_step_db": 4.12974100112915,
-    "mean_abs_phase_step_rad": 1.1791962385177612,
-    "median_abs_phase_step_rad": 1.1689295768737793,
-    "p95_abs_phase_step_rad": 1.4853891193866728,
+    "relative_complex_change_mean": 1.2712042331695557,
+    "relative_complex_change_median": 1.269536018371582,
+    "relative_complex_change_p95": 1.3593786597251891,
+    "complex_correlation_mean": 0.389506071805954,
+    "complex_correlation_median": 0.3917253613471985,
+    "complex_correlation_p05": 0.31203360557556153,
+    "mean_abs_amplitude_step_db": 4.84002685546875,
+    "median_abs_amplitude_step_db": 4.833553314208984,
+    "p95_abs_amplitude_step_db": 5.3382607936859126,
+    "mean_abs_phase_step_rad": 1.3077220916748047,
+    "median_abs_phase_step_rad": 1.3066534996032715,
+    "p95_abs_phase_step_rad": 1.4207431256771088,
     "mean_abs_amplitude_step_db_by_rx_tx": [
       [
-        4.295542240142822,
-        5.783670902252197
+        6.010636806488037,
+        5.998582363128662
       ],
       [
-        2.7592337131500244,
-        2.0791282653808594
+        3.515733242034912,
+        3.835163116455078
       ]
     ],
     "mean_abs_phase_step_rad_by_rx_tx": [
       [
-        1.150852918624878,
-        1.4011023044586182
+        1.5386195182800293,
+        1.5431619882583618
       ],
       [
-        1.0840320587158203,
-        1.0808002948760986
+        1.0532746315002441,
+        1.0958340167999268
       ]
     ]
+  },
+  "sanitization_comparison": {
+    "raw_complex_h": {
+      "relative_complex_change_mean": 1.2712042331695557,
+      "relative_complex_change_median": 1.269536018371582,
+      "relative_complex_change_p95": 1.3593786597251891,
+      "complex_correlation_mean": 0.389506071805954,
+      "complex_correlation_median": 0.3917253613471985,
+      "complex_correlation_p05": 0.31203360557556153,
+      "mean_abs_amplitude_step_db": 4.84002685546875,
+      "median_abs_amplitude_step_db": 4.833553314208984,
+      "p95_abs_amplitude_step_db": 5.3382607936859126,
+      "mean_abs_phase_step_rad": 1.3077220916748047,
+      "median_abs_phase_step_rad": 1.3066534996032715,
+      "p95_abs_phase_step_rad": 1.4207431256771088,
+      "mean_abs_amplitude_step_db_by_rx_tx": [
+        [
+          6.010636806488037,
+          5.998582363128662
+        ],
+        [
+          3.515733242034912,
+          3.835163116455078
+        ]
+      ],
+      "mean_abs_phase_step_rad_by_rx_tx": [
+        [
+          1.5386195182800293,
+          1.5431619882583618
+        ],
+        [
+          1.0532746315002441,
+          1.0958340167999268
+        ]
+      ]
+    },
+    "linear_phase_sanitized_h": {
+      "relative_complex_change_mean": 1.4009333848953247,
+      "relative_complex_change_median": 1.4041128158569336,
+      "relative_complex_change_p95": 1.5142967224121093,
+      "complex_correlation_mean": 0.10416673868894577,
+      "complex_correlation_median": 0.08817785233259201,
+      "complex_correlation_p05": 0.02111407769843936,
+      "mean_abs_amplitude_step_db": 4.84002685546875,
+      "median_abs_amplitude_step_db": 4.833553314208984,
+      "p95_abs_amplitude_step_db": 5.3382607936859126,
+      "mean_abs_phase_step_rad": 1.540931224822998,
+      "median_abs_phase_step_rad": 1.550462007522583,
+      "p95_abs_phase_step_rad": 1.7496766507625579,
+      "mean_abs_amplitude_step_db_by_rx_tx": [
+        [
+          6.010636806488037,
+          5.998582363128662
+        ],
+        [
+          3.515733242034912,
+          3.835163116455078
+        ]
+      ],
+      "mean_abs_phase_step_rad_by_rx_tx": [
+        [
+          1.570292592048645,
+          1.5687334537506104
+        ],
+        [
+          1.4682978391647339,
+          1.5564004182815552
+        ]
+      ]
+    },
+    "amplitude_only_abs_h": {
+      "relative_complex_change_mean": 0.5685307383537292,
+      "relative_complex_change_median": 0.5666764974594116,
+      "relative_complex_change_p95": 0.6225065141916275,
+      "complex_correlation_mean": 0.8394289612770081,
+      "complex_correlation_median": 0.8401822447776794,
+      "complex_correlation_p05": 0.8120265066623688,
+      "mean_abs_amplitude_step_db": 4.84002685546875,
+      "median_abs_amplitude_step_db": 4.833553314208984,
+      "p95_abs_amplitude_step_db": 5.3382607936859126,
+      "mean_abs_phase_step_rad": 0.0,
+      "median_abs_phase_step_rad": 0.0,
+      "p95_abs_phase_step_rad": 0.0,
+      "mean_abs_amplitude_step_db_by_rx_tx": [
+        [
+          6.010636806488037,
+          5.998582363128662
+        ],
+        [
+          3.515733242034912,
+          3.835163116455078
+        ]
+      ],
+      "mean_abs_phase_step_rad_by_rx_tx": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ]
+    }
+  },
+  "smoothed_mean_amplitude_stability": {
+    "1": {
+      "mean_step_db": 0.7173475027084351,
+      "median_step_db": 0.5823345184326172,
+      "p95_step_db": 1.8704158782958993,
+      "mean_std_over_time_db": 0.7072032690048218
+    },
+    "5": {
+      "mean_step_db": 0.14335093183139344,
+      "median_step_db": 0.11563568115234091,
+      "p95_step_db": 0.36961135864257955,
+      "mean_std_over_time_db": 0.3856488543788701
+    },
+    "10": {
+      "mean_step_db": 0.07191670632453166,
+      "median_step_db": 0.05767593383788849,
+      "p95_step_db": 0.1871660232543899,
+      "mean_std_over_time_db": 0.3153265233650087
+    },
+    "20": {
+      "mean_step_db": 0.03587032596996497,
+      "median_step_db": 0.028928756713867188,
+      "p95_step_db": 0.09201598167419967,
+      "mean_std_over_time_db": 0.26040205677067574
+    },
+    "50": {
+      "mean_step_db": 0.01452695535924557,
+      "median_step_db": 0.011612510681150212,
+      "p95_step_db": 0.03765588760375671,
+      "mean_std_over_time_db": 0.1991045642356651
+    },
+    "100": {
+      "mean_step_db": 0.00729382040160463,
+      "median_step_db": 0.005801734924322233,
+      "p95_step_db": 0.01888140678405925,
+      "mean_std_over_time_db": 0.16754193019977165
+    }
   }
 }

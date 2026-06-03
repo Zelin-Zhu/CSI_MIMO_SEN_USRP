@@ -172,7 +172,7 @@ bash start_tx.sh
 After TX starts, terminal 2 should print something like:
 
 ```text
-TX: 1800.000000 MHz, 1.000 MS/s, probe=1000.0 Hz, gain=30.0 dB, frame=1000 samples
+TX: 1800.000000 MHz, 2.000 MS/s, probe=1000.0 Hz, gain=40.0 dB, frame=2000 samples, pilot_repeats=4
 Transmitting. Press Ctrl+C to stop.
 ```
 
@@ -186,17 +186,17 @@ The RX GUI reads the OFDM probe configuration from `csi_probe_common.py`.
 Current default values:
 
 ```text
-sample_rate = 1e6
+sample_rate = 2e6
 fft_len = 64
-subcarrier_spacing = sample_rate / fft_len = 15.625 kHz
+subcarrier_spacing = sample_rate / fft_len = 31.250 kHz
 active_carriers = -26..-1 and 1..26
-active_carrier_offsets = -406.25 kHz..+406.25 kHz
+active_carrier_offsets = -812.50 kHz..+812.50 kHz
 ```
 
 With `freq = 1800e6`, the active carrier center range is:
 
 ```text
-1799.593750 MHz..1800.406250 MHz
+1799.187500 MHz..1800.812500 MHz
 ```
 
 The GUI spectrum FFT size is only for display smoothing. It does not change the
@@ -215,20 +215,23 @@ TX1 pilot
 guard
 ```
 
-Current default layout at `rate=1e6` and `probe_rate=1000`:
+Current default layout at `rate=2e6`, `probe_rate=1000`, and
+`pilot_repeats_per_tx=4`:
 
 ```text
-frame_len = 1000 samples
+frame_len = 2000 samples
 short training = 160 samples
 long training = 160 samples
-TX0 pilot = 80 samples
-TX1 pilot = 80 samples
-guard = 520 samples
+TX0 pilot block = 4 x 80 samples
+TX1 pilot block = 4 x 80 samples
+guard = 1040 samples
 ```
 
 The training section is transmitted on both TX channels to improve frame
 detection. TX0 and TX1 pilots remain time-division multiplexed, so CSI can still
-be estimated as a 2x2 MIMO channel.
+be estimated as a 2x2 MIMO channel. The extractor averages repeated pilots only
+inside the same frame, which improves SNR without smoothing away changes across
+different frames.
 
 ## 6. Stop Scripts
 

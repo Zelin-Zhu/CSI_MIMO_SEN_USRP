@@ -19,7 +19,10 @@ guard
 ```
 
 The training section is sent on both TX channels to make synchronization more
-robust. The TX pilots are still separated in time for 2x2 CSI estimation.
+robust. The TX pilots are still separated in time for 2x2 CSI estimation. In
+the current WiFi-like mode, each TX pilot block contains repeated OFDM pilot
+symbols, so the preview can average pilots inside one frame without smoothing
+between frames.
 
 Run:
 
@@ -42,6 +45,8 @@ Final stable condition observed after increasing TX strength:
 
 ```text
 probe_rate: 1000 Hz
+sample_rate: 2 MS/s
+pilot_repeats_per_tx: 4
 buffer: 0.5 s
 expected frames: about 500
 detected frames: about 497

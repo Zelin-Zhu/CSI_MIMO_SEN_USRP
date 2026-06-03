@@ -50,6 +50,10 @@ def main() -> None:
     plot_relative_phase(h, time_s, args.out_dir)
     stability = compute_adjacent_stability(h, amp_db)
     plot_adjacent_stability(stability, time_s[1:], args.out_dir)
+    sanitization = compare_sanitization(h)
+    plot_sanitization_comparison(sanitization, args.out_dir)
+    smoothing = compare_smoothed_mean_amplitude(amp_db)
+    plot_smoothing_comparison(smoothing, args.out_dir)
 
     summary = {
         "capture_dir": str(args.capture_dir),
@@ -66,6 +70,8 @@ def main() -> None:
         "mean_cfo_hz_per_rx": info.get("mean_cfo_hz_per_rx"),
         "std_cfo_hz_per_rx": info.get("std_cfo_hz_per_rx"),
         "adjacent_frame_stability": stability["summary"],
+        "sanitization_comparison": sanitization,
+        "smoothed_mean_amplitude_stability": smoothing,
     }
     (args.out_dir / "analysis_summary.json").write_text(
         json.dumps(summary, indent=2), encoding="utf-8"
@@ -203,6 +209,99 @@ def plot_adjacent_stability(stability: dict[str, object], time_s: np.ndarray, ou
     axes[1].legend()
 
     fig.savefig(out_dir / "adjacent_frame_stability.png", dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def linear_phase_sanitize(h: np.ndarray) -> np.ndarray:
+    carriers = np.array(list(range(-26, 0)) + list(range(1, 27)), dtype=np.float64)
+    design = np.vstack([carriers, np.ones_like(carriers)]).T
+    out = np.empty_like(h)
+    for rx in range(h.shape[1]):
+        for tx in range(h.shape[2]):
+            phase = np.unwrap(np.angle(h[:, rx, tx, :]), axis=1)
+            coeff = np.linalg.lstsq(design, phase.T, rcond=None)[0].T
+            fit = coeff[:, 0, None] * carriers[None, :] + coeff[:, 1, None]
+            out[:, rx, tx, :] = np.abs(h[:, rx, tx, :]) * np.exp(1j * (phase - fit))
+    return out
+
+
+def stability_summary_only(h: np.ndarray) -> dict[str, float]:
+    amp_db = 20.0 * np.log10(np.abs(h) + 1e-12)
+    return compute_adjacent_stability(h, amp_db)["summary"]
+
+
+def compare_sanitization(h: np.ndarray) -> dict[str, dict[str, float]]:
+    return {
+        "raw_complex_h": stability_summary_only(h),
+        "linear_phase_sanitized_h": stability_summary_only(linear_phase_sanitize(h)),
+        "amplitude_only_abs_h": stability_summary_only(np.abs(h).astype(np.complex64)),
+    }
+
+
+def plot_sanitization_comparison(results: dict[str, dict[str, float]], out_dir: Path) -> None:
+    labels = list(results.keys())
+    corr = [results[label]["complex_correlation_mean"] for label in labels]
+    amp_step = [results[label]["mean_abs_amplitude_step_db"] for label in labels]
+    phase_step = [results[label]["mean_abs_phase_step_rad"] for label in labels]
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    axes[0].bar(labels, corr)
+    axes[0].set_title("Mean Adjacent Correlation")
+    axes[0].set_ylabel("correlation")
+    axes[1].bar(labels, amp_step)
+    axes[1].set_title("Mean Amplitude Step")
+    axes[1].set_ylabel("dB")
+    axes[2].bar(labels, phase_step)
+    axes[2].set_title("Mean Phase Step")
+    axes[2].set_ylabel("rad")
+    for ax in axes:
+        ax.tick_params(axis="x", rotation=25)
+        ax.grid(True, axis="y", alpha=0.3)
+    fig.suptitle("Raw CSI vs Simple Sanitization")
+    fig.savefig(out_dir / "sanitization_stability_comparison.png", dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def compare_smoothed_mean_amplitude(amp_db: np.ndarray) -> dict[str, dict[str, float]]:
+    mean_amp = np.mean(amp_db, axis=3)
+    results: dict[str, dict[str, float]] = {}
+    for window in (1, 5, 10, 20, 50, 100):
+        if window == 1:
+            smoothed = mean_amp
+        else:
+            kernel = np.ones(window, dtype=np.float64) / window
+            smoothed = np.empty((mean_amp.shape[0] - window + 1, 2, 2), dtype=np.float64)
+            for rx in range(2):
+                for tx in range(2):
+                    smoothed[:, rx, tx] = np.convolve(mean_amp[:, rx, tx], kernel, mode="valid")
+        step = np.abs(smoothed[1:] - smoothed[:-1])
+        results[str(window)] = {
+            "mean_step_db": float(np.mean(step)),
+            "median_step_db": float(np.median(step)),
+            "p95_step_db": float(np.percentile(step, 95)),
+            "mean_std_over_time_db": float(np.mean(np.std(smoothed, axis=0))),
+        }
+    return results
+
+
+def plot_smoothing_comparison(results: dict[str, dict[str, float]], out_dir: Path) -> None:
+    windows = np.array([int(key) for key in results.keys()])
+    mean_step = np.array([results[str(window)]["mean_step_db"] for window in windows])
+    std_time = np.array([results[str(window)]["mean_std_over_time_db"] for window in windows])
+
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+    ax1.plot(windows, mean_step, marker="o", label="mean adjacent step")
+    ax1.set_xlabel("Moving-average window (frames)")
+    ax1.set_ylabel("Mean adjacent amplitude step (dB)")
+    ax1.grid(True, alpha=0.3)
+    ax2 = ax1.twinx()
+    ax2.plot(windows, std_time, marker="s", color="tab:orange", label="mean std over time")
+    ax2.set_ylabel("Mean std over time (dB)")
+    ax1.set_title("Smoothed Mean-Amplitude Stability")
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper right")
+    fig.savefig(out_dir / "smoothed_mean_amplitude_stability.png", dpi=180, bbox_inches="tight")
     plt.close(fig)
 
 
