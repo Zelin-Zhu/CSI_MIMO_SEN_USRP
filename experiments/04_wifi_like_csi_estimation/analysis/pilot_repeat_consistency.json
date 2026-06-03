@@ -1,0 +1,22 @@
+{
+  "frames_used": 2000,
+  "pilot_repeats_per_tx": 4,
+  "within_frame_repeat_amp_std_db_mean": 4.276768684387207,
+  "within_frame_repeat_amp_std_db_median": 3.904111862182617,
+  "within_frame_repeat_amp_range_db_mean": 10.979324340820312,
+  "within_frame_repeat_amp_range_db_median": 10.036885261535645,
+  "within_frame_adjacent_repeat_complex_corr_mean": 0.12511584162712097,
+  "within_frame_adjacent_repeat_complex_corr_median": 0.12267173826694489,
+  "single_first_pilot_adjacent": {
+    "complex_corr_mean": 0.08705133199691772,
+    "complex_corr_median": 0.082552969455719,
+    "mean_abs_amp_step_db": 6.002784252166748,
+    "median_abs_amp_step_db": 5.9827351570129395
+  },
+  "four_pilot_average_adjacent": {
+    "complex_corr_mean": 0.18723885715007782,
+    "complex_corr_median": 0.19311609864234924,
+    "mean_abs_amp_step_db": 5.867437839508057,
+    "median_abs_amp_step_db": 5.857715129852295
+  }
+}

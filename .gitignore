@@ -3,3 +3,6 @@ __pycache__/
 
 # Large extracted CSI matrices are local experiment artifacts.
 experiments/**/H.npy
+
+# Large raw IQ captures are uploaded separately or force-added for one-off tests.
+experiments/**/*.fc32
