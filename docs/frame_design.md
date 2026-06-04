@@ -7,7 +7,7 @@ decoding.
 Current defaults:
 
 ```text
-center_freq = 5825 MHz
+center_freq = 1890 MHz
 sample_rate = 20 MS/s
 fft_len = 64
 cp_len = 16

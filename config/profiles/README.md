@@ -3,8 +3,8 @@
 Optional profile files can be placed here for specific experiments, for example:
 
 ```text
-spectrum_2484.json
-raw_iq_2x2_2484.json
+spectrum_1890.json
+raw_iq_2x2_1890.json
 csi_offline_default.json
 ```
 

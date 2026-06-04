@@ -5,7 +5,7 @@
     "antenna": "TX/RX"
   },
   "radio": {
-    "center_freq": 5825000000.0,
+    "center_freq": 1890000000.0,
     "sample_rate": 20000000.0,
     "tx_gain": 30.0,
     "rx_gain": 30.0

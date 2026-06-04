@@ -1,10 +1,10 @@
 {
   "uhd_args": "serial=3271260",
-  "center_freq": 2484000000.0,
-  "sample_rate": 2000000.0,
+  "center_freq": 1890000000.0,
+  "sample_rate": 20000000.0,
   "rx_gain_db": 30.0,
   "rx_antenna": "TX/RX",
-  "seconds": 5.0,
-  "total_samples_per_channel": 10000000,
+  "seconds": 0.2,
+  "total_samples_per_channel": 4000000,
   "dtype": "complex64"
 }

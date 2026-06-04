@@ -7,7 +7,7 @@ OS: native Ubuntu 22.04 or 24.04
 SDR: two USRP B210 devices
 TX device: 2-channel TX
 RX device: 2-channel RX
-antennas: matched 2.4/5 GHz antennas on TX/RX ports
+antennas: matched antennas on TX/RX ports; VERT900 is suitable for the current 1890 MHz default
 USB: direct USB3 connection, no hub if possible
 ```
 
@@ -36,6 +36,7 @@ Update `config/devices.local.json` with the serials for your setup.
 
 ## Frequency Selection
 
-Use `01_spectrum_survey/rx_spectrum_gui.py` before transmitting. The default
-configuration uses 2484 MHz because it was clean in the current test
-environment. Always verify your local spectrum and comply with local RF rules.
+Use `01_spectrum_survey/rx_spectrum_gui.py` before transmitting. The current
+default configuration uses 1890 MHz with 20 MS/s because 1880-1900 MHz was clean
+in the current test environment and is covered by VERT900. Always verify your
+local spectrum and comply with local RF rules.

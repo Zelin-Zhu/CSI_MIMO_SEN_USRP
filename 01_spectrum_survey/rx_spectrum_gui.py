@@ -12,8 +12,8 @@ Features:
 Example:
     python3 01_spectrum_survey/rx_spectrum_gui.py \
       --args "serial=3271260" \
-      --freq 2.484e9 \
-      --rate 2e6 \
+      --freq 1.890e9 \
+      --rate 20e6 \
       --gain 30 \
       --antenna "TX/RX"
 """

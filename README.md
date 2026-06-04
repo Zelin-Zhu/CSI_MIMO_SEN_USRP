@@ -10,8 +10,9 @@ workflow into three stages:
 ```
 
 The current target setup is two USRP B210 devices, one for 2-channel TX and one
-for 2-channel RX. The default configuration uses a clean 5 GHz test point at
-5825 MHz, 20 MS/s sampling, and a WiFi-like HT-LTF sounding frame for 2x2 CSI.
+for 2-channel RX. The default configuration uses a clean VERT900-compatible test
+point at 1890 MHz, 20 MS/s sampling, and a WiFi-like HT-LTF sounding frame for
+2x2 CSI.
 
 ## Repository Layout
 
