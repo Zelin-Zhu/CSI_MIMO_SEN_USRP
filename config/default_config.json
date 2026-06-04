@@ -7,7 +7,7 @@
   "radio": {
     "center_freq": 5825000000.0,
     "sample_rate": 20000000.0,
-    "tx_gain": 20.0,
+    "tx_gain": 30.0,
     "rx_gain": 30.0
   },
   "frame": {
@@ -19,7 +19,7 @@
     "frame_format": "wifi_ht20_2x2_ltf_sounding"
   },
   "capture": {
-    "seconds": 5.0,
+    "seconds": 0.2,
     "output_root": "data/captures",
     "default_capture_id": "raw_iq_001"
   },
