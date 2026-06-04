@@ -1,0 +1,44 @@
+{
+  "devices": {
+    "tx_args": "serial=326F493",
+    "rx_args": "serial=3271260",
+    "antenna": "TX/RX"
+  },
+  "radio": {
+    "center_freq": 2484000000.0,
+    "sample_rate": 2000000.0,
+    "tx_gain": 20.0,
+    "rx_gain": 30.0
+  },
+  "frame": {
+    "fft_len": 64,
+    "cp_len": 16,
+    "probe_rate_hz": 1000.0,
+    "tx_scale": 0.3,
+    "pilot_repeats_per_tx": 4,
+    "frame_format": "wifi_like_stf_ltf_tdm_mimo"
+  },
+  "capture": {
+    "seconds": 5.0,
+    "output_root": "data/captures",
+    "default_capture_id": "raw_iq_001"
+  },
+  "spectrum": {
+    "fft_size": 2048
+  },
+  "monitor": {
+    "buffer_seconds": 0.5,
+    "update_interval_ms": 250,
+    "threshold": 0.35,
+    "min_frame_ratio": 0.8,
+    "max_frames_display": 80
+  },
+  "csi": {
+    "threshold": 0.35,
+    "min_frame_ratio": 0.8,
+    "timing_search_samples": 24,
+    "enable_cfo_correction": true,
+    "enable_cpe_correction": true,
+    "enable_phase_slope_correction": true
+  }
+}

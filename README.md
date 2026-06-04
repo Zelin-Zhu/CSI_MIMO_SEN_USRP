@@ -1,0 +1,115 @@
+# CSI MIMO Sensing With USRP B210
+
+This repository is a USRP B210 2x2 MIMO CSI sensing prototype. It separates the
+workflow into three stages:
+
+```text
+01_spectrum_survey  -> find a clean RF band
+02_iq_capture       -> transmit probes and save raw dual-RX IQ
+03_csi_extraction   -> extract and analyze CSI offline
+```
+
+The current target setup is two USRP B210 devices, one for 2-channel TX and one
+for 2-channel RX. The default configuration uses a clean 2.4 GHz test point near
+2484 MHz, 2 MS/s sampling, and a WiFi-like OFDM probe frame.
+
+## Repository Layout
+
+```text
+config/              shared experiment configuration
+common/              shared frame generation and config helpers
+01_spectrum_survey/  RX spectrum tools for selecting a clean band
+02_iq_capture/       TX/RX scripts and raw IQ capture tools
+03_csi_extraction/   offline CSI extraction, correction diagnostics, analysis
+data/                local raw captures, ignored by Git
+results/             local CSI outputs and plots, ignored by Git
+docs/                setup notes and design documentation
+examples/            small example metadata files
+```
+
+## Quick Start
+
+Copy and edit the local device config if your B210 serials differ:
+
+```bash
+cp config/devices.example.json config/devices.local.json
+```
+
+Find a clean band:
+
+```bash
+python3 01_spectrum_survey/rx_spectrum_gui.py
+```
+
+Start TX:
+
+```bash
+bash 02_iq_capture/start_tx.sh
+```
+
+Optionally monitor CSI detection:
+
+```bash
+bash 02_iq_capture/start_rx_monitor.sh
+```
+
+Capture raw IQ:
+
+```bash
+bash 02_iq_capture/capture_raw_iq.sh data/captures/raw_iq_001 5
+```
+
+Extract CSI offline:
+
+```bash
+python3 03_csi_extraction/extract_csi_wifi_like.py \
+  --capture-dir data/captures/raw_iq_001 \
+  --out-dir results/raw_iq_001/wifi_like_debug
+```
+
+Run basic CSI analysis:
+
+```bash
+python3 03_csi_extraction/analyze_csi_basic.py \
+  --capture-dir data/captures/raw_iq_001 \
+  --out-dir results/raw_iq_001
+```
+
+## Data Policy
+
+Raw IQ and CSI matrices are intentionally ignored by Git:
+
+```text
+*.fc32
+*.npy
+data/captures/**
+results/**
+```
+
+Use external storage, Git LFS, or a one-off `git add -f` only when a capture must
+be shared for debugging.
+
+## Current Research Status
+
+This project is not yet equivalent to a commercial WiFi CSI NIC. It captures raw
+IQ and provides an offline WiFi-like CSI extraction pipeline with diagnostics for:
+
+```text
+frame detection
+LTF timing search
+CFO estimation
+pilot repeat consistency
+phase-slope correction diagnostics
+adjacent-frame CSI stability
+```
+
+The next major frame-design step is 2x2 orthogonal MIMO LTF training, closer to
+commercial WiFi MIMO training than identical simultaneous LTF transmission.
+
+## Documentation
+
+```text
+docs/hardware_setup.md
+docs/frame_design.md
+docs/troubleshooting.md
+```

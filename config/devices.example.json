@@ -1,0 +1,7 @@
+{
+  "devices": {
+    "tx_args": "serial=YOUR_TX_B210_SERIAL",
+    "rx_args": "serial=YOUR_RX_B210_SERIAL",
+    "antenna": "TX/RX"
+  }
+}

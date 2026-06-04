@@ -1,8 +1,18 @@
 __pycache__/
 *.py[cod]
 
-# Large extracted CSI matrices are local experiment artifacts.
-experiments/**/H.npy
+# Local hardware settings.
+config/devices.local.json
 
-# Large raw IQ captures are uploaded separately or force-added for one-off tests.
-experiments/**/*.fc32
+# Large experiment artifacts. Use external storage, Git LFS, or force-add one-off captures.
+data/captures/**
+results/**
+experiments/**
+*.fc32
+*.npy
+
+# Keep placeholder docs in otherwise ignored artifact roots.
+!data/README.md
+!data/.gitkeep
+!results/README.md
+!results/.gitkeep

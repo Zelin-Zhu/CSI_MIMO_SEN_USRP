@@ -1,0 +1,12 @@
+{
+  "capture_id": "raw_iq_001",
+  "H_shape": [4999, 2, 2, 52],
+  "sample_rate_hz": 2000000.0,
+  "probe_rate_hz": 1000.0,
+  "active_carrier_count": 52,
+  "complex_correlation_mean": 0.08,
+  "mean_abs_amplitude_step_db": 6.0,
+  "notes": [
+    "This is an example schema, not a reference-good CSI result."
+  ]
+}
