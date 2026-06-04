@@ -7,10 +7,12 @@ decoding.
 Current defaults:
 
 ```text
-sample_rate = 2 MS/s
+center_freq = 5825 MHz
+sample_rate = 20 MS/s
 fft_len = 64
 cp_len = 16
 active carriers = -26..-1 and 1..26
+subcarrier_spacing = 312.5 kHz
 probe_rate = 1000 Hz
 frame_format = wifi_ht20_2x2_ltf_sounding
 ```

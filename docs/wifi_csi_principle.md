@@ -133,7 +133,7 @@ MIMO decoding: 使用 (Y1+Y2)/(2X) 和 (Y1-Y2)/(2X)
 当前 frame 和提取流程更接近真实 WiFi CSI 的核心机制，但仍不是完整 WiFi PHY：
 
 ```text
-不是 20 MHz 标准采样率
+没有完整标准 802.11 packet framing
 没有完整 SIGNAL/HT-SIG 字段
 没有 payload 解调
 没有 DATA pilot 跟踪残余 CFO/SFO

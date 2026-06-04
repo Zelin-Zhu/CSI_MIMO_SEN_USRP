@@ -8,8 +8,8 @@ import numpy as np
 
 @dataclass(frozen=True)
 class ProbeConfig:
-    sample_rate: float = 2e6
-    center_freq: float = 2484e6  # Change to a locally permitted RF frequency.
+    sample_rate: float = 20e6
+    center_freq: float = 5825e6  # Change to a locally permitted RF frequency.
     fft_len: int = 64
     cp_len: int = 16
     probe_rate_hz: float = 50.0
