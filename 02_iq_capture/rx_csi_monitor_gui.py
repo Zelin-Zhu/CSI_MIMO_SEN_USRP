@@ -162,6 +162,7 @@ class CsiMonitorWindow(Qt.QWidget):
         tx_scale: float,
         pilot_repeats_per_tx: int,
         frame_format: str,
+        sync_tx_mode: str,
     ):
         super().__init__()
         self.setWindowTitle("USRP B210 realtime CSI monitor")
@@ -181,6 +182,7 @@ class CsiMonitorWindow(Qt.QWidget):
             tx_scale=tx_scale,
             pilot_repeats_per_tx=pilot_repeats_per_tx,
             frame_format=frame_format,
+            sync_tx_mode=sync_tx_mode,
             seed=CFG.seed,
         )
         self.tx0, _, self.meta = make_waveforms(self.cfg)
@@ -262,6 +264,7 @@ class CsiMonitorWindow(Qt.QWidget):
             f"buffer={buffer_seconds:.2f}s\n"
             f"OFDM FFT={self.cfg.fft_len}, active carriers={len(self.cfg.active_carriers)}, "
             f"frame_format={self.cfg.frame_format}, "
+            f"sync_tx_mode={self.cfg.sync_tx_mode}, "
             f"probe_rate={self.cfg.probe_rate_hz:.1f} Hz, tx_scale={self.cfg.tx_scale:.2f}, "
             f"pilot_repeats_per_tx={self.cfg.pilot_repeats_per_tx}, "
             f"spacing={self.cfg.subcarrier_spacing_hz / 1e3:.3f} kHz, "
@@ -380,6 +383,7 @@ def parse_args() -> argparse.Namespace:
         default=int(defaults.get("pilot_repeats_per_tx", tx_defaults["pilot_repeats_per_tx"])),
     )
     parser.add_argument("--frame-format", default=str(defaults.get("frame_format", tx_defaults["frame_format"])))
+    parser.add_argument("--sync-tx-mode", choices=["both", "tx0_only"], default=str(defaults.get("sync_tx_mode", tx_defaults["sync_tx_mode"])))
     return parser.parse_args()
 
 
@@ -401,6 +405,7 @@ def main() -> None:
         tx_scale=args.tx_scale,
         pilot_repeats_per_tx=args.pilot_repeats_per_tx,
         frame_format=args.frame_format,
+        sync_tx_mode=args.sync_tx_mode,
     )
     window.start()
     window.show()

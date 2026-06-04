@@ -16,6 +16,7 @@ class ProbeConfig:
     tx_scale: float = 0.20
     pilot_repeats_per_tx: int = 4
     frame_format: str = "wifi_ht20_2x2_ltf_sounding"
+    sync_tx_mode: str = "both"
     seed: int = 20260602
 
     @property
@@ -69,7 +70,7 @@ DEFAULT_PROJECT_CONFIG: dict[str, dict[str, Any]] = {
     "radio": {
         "center_freq": CFG.center_freq,
         "sample_rate": CFG.sample_rate,
-        "tx_gain": 10.0,
+        "tx_gain": 30.0,
         "rx_gain": 20.0,
     },
     "frame": {
@@ -79,6 +80,7 @@ DEFAULT_PROJECT_CONFIG: dict[str, dict[str, Any]] = {
         "tx_scale": CFG.tx_scale,
         "pilot_repeats_per_tx": CFG.pilot_repeats_per_tx,
         "frame_format": CFG.frame_format,
+        "sync_tx_mode": CFG.sync_tx_mode,
     },
     "capture": {
         "seconds": 5.0,
@@ -146,6 +148,7 @@ def runtime_defaults(section: str, path: str | Path = CONFIG_PATH) -> dict[str, 
         "tx_scale": frame["tx_scale"],
         "pilot_repeats_per_tx": frame["pilot_repeats_per_tx"],
         "frame_format": frame["frame_format"],
+        "sync_tx_mode": frame.get("sync_tx_mode", CFG.sync_tx_mode),
     }
     if section == "tx":
         return {
@@ -324,6 +327,8 @@ def make_legacy_tdm_waveforms(cfg: ProbeConfig = CFG):
 
 
 def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
+    if cfg.sync_tx_mode not in {"both", "tx0_only"}:
+        raise ValueError("sync_tx_mode must be 'both' or 'tx0_only'")
     training_freq_raw, training_useful_raw = _ltf_useful_raw(cfg)
     short_raw = _short_training(cfg)
     digital_scale = _scale_waveform_parts(cfg, [short_raw, training_useful_raw])
@@ -351,14 +356,20 @@ def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
     if guard_len < 0:
         raise ValueError(f"Probe period too short: frame_len={cfg.frame_len}, occupied={occupied}")
     guard = np.zeros(guard_len, dtype=np.complex64)
-    tx0 = np.concatenate([short_training, legacy_ltf, ht_ltf1, ht_ltf2, guard]).astype(np.complex64)
-    tx1 = np.concatenate([short_training, legacy_ltf, ht_ltf1, -ht_ltf2, guard]).astype(np.complex64)
+    sync_training = np.concatenate([short_training, legacy_ltf]).astype(np.complex64)
+    if cfg.sync_tx_mode == "both":
+        tx1_sync = sync_training
+    else:
+        tx1_sync = np.zeros(len(sync_training), dtype=np.complex64)
+    tx0 = np.concatenate([sync_training, ht_ltf1, ht_ltf2, guard]).astype(np.complex64)
+    tx1 = np.concatenate([tx1_sync, ht_ltf1, -ht_ltf2, guard]).astype(np.complex64)
     training_freq_scaled = (digital_scale * training_freq_raw).astype(np.complex64)
     stf_len = len(short_training)
     ltf_start = stf_len
     meta = {
         **asdict(cfg),
         "frame_format": "wifi_ht20_2x2_ltf_sounding",
+        "sync_tx_mode": cfg.sync_tx_mode,
         "sym_len": cfg.sym_len,
         "frame_len": cfg.frame_len,
         "active_carriers": cfg.active_carriers.tolist(),
