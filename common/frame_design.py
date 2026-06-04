@@ -15,6 +15,7 @@ class ProbeConfig:
     probe_rate_hz: float = 50.0
     tx_scale: float = 0.20
     pilot_repeats_per_tx: int = 4
+    frame_format: str = "wifi_ht20_2x2_ltf_sounding"
     seed: int = 20260602
 
     @property
@@ -77,7 +78,7 @@ DEFAULT_PROJECT_CONFIG: dict[str, dict[str, Any]] = {
         "probe_rate_hz": CFG.probe_rate_hz,
         "tx_scale": CFG.tx_scale,
         "pilot_repeats_per_tx": CFG.pilot_repeats_per_tx,
-        "frame_format": "wifi_like_stf_ltf_tdm_mimo",
+        "frame_format": CFG.frame_format,
     },
     "capture": {
         "seconds": 5.0,
@@ -144,6 +145,7 @@ def runtime_defaults(section: str, path: str | Path = CONFIG_PATH) -> dict[str, 
         "probe_rate": frame["probe_rate_hz"],
         "tx_scale": frame["tx_scale"],
         "pilot_repeats_per_tx": frame["pilot_repeats_per_tx"],
+        "frame_format": frame["frame_format"],
     }
     if section == "tx":
         return {
@@ -227,26 +229,35 @@ def _short_training(cfg: ProbeConfig = CFG) -> np.ndarray:
     return np.tile(unit, SHORT_TRAINING_REPEATS).astype(np.complex64)
 
 
-def make_waveforms(cfg: ProbeConfig = CFG):
-    if cfg.pilot_repeats_per_tx < 1:
-        raise ValueError("pilot_repeats_per_tx must be at least 1")
-    rng = np.random.default_rng(cfg.seed)
-    k = len(cfg.active_carriers)
+def _ltf_useful_raw(cfg: ProbeConfig = CFG) -> tuple[np.ndarray, np.ndarray]:
     training_values = _training_values(cfg)
-    pilot_values = rng.choice([-1.0, 1.0], size=k).astype(np.complex64)
     training_freq_raw = _freq_vector(training_values, cfg)
-    pilot_freq_raw = _freq_vector(pilot_values, cfg)
     training_useful_raw = np.fft.ifft(training_freq_raw).astype(np.complex64)
+    return training_freq_raw, training_useful_raw
+
+
+def _pilot_symbol_raw(cfg: ProbeConfig = CFG) -> tuple[np.ndarray, np.ndarray]:
+    rng = np.random.default_rng(cfg.seed)
+    pilot_values = rng.choice([-1.0, 1.0], size=len(cfg.active_carriers)).astype(np.complex64)
+    pilot_freq_raw = _freq_vector(pilot_values, cfg)
     pilot_useful_raw = np.fft.ifft(pilot_freq_raw).astype(np.complex64)
-    short_raw = _short_training(cfg)
-    peak = max(
-        float(np.max(np.abs(short_raw))),
-        float(np.max(np.abs(training_useful_raw))),
-        float(np.max(np.abs(pilot_useful_raw))),
-    )
+    return pilot_freq_raw, pilot_useful_raw
+
+
+def _scale_waveform_parts(cfg: ProbeConfig, parts: list[np.ndarray]) -> float:
+    peak = max(float(np.max(np.abs(part))) for part in parts if len(part))
     if peak <= 0:
         raise RuntimeError("Generated an invalid all-zero waveform.")
-    digital_scale = cfg.tx_scale / peak
+    return cfg.tx_scale / peak
+
+
+def make_legacy_tdm_waveforms(cfg: ProbeConfig = CFG):
+    if cfg.pilot_repeats_per_tx < 1:
+        raise ValueError("pilot_repeats_per_tx must be at least 1")
+    training_freq_raw, training_useful_raw = _ltf_useful_raw(cfg)
+    pilot_freq_raw, pilot_useful_raw = _pilot_symbol_raw(cfg)
+    short_raw = _short_training(cfg)
+    digital_scale = _scale_waveform_parts(cfg, [short_raw, training_useful_raw, pilot_useful_raw])
     short_training = (digital_scale * short_raw).astype(np.complex64)
     training_useful = (digital_scale * training_useful_raw).astype(np.complex64)
     pilot_useful = (digital_scale * pilot_useful_raw).astype(np.complex64)
@@ -310,6 +321,73 @@ def make_waveforms(cfg: ProbeConfig = CFG):
         "pilot_freq_imag": pilot_freq_scaled.imag.tolist(),
     }
     return tx0, tx1, meta
+
+
+def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
+    training_freq_raw, training_useful_raw = _ltf_useful_raw(cfg)
+    short_raw = _short_training(cfg)
+    digital_scale = _scale_waveform_parts(cfg, [short_raw, training_useful_raw])
+    short_training = (digital_scale * short_raw).astype(np.complex64)
+    ltf_useful = (digital_scale * training_useful_raw).astype(np.complex64)
+
+    # Legacy L-LTF: common timing/CFO reference, sent identically by both TX chains.
+    legacy_ltf = np.concatenate(
+        [
+            ltf_useful[-LONG_TRAINING_CP_LEN:],
+            ltf_useful,
+            ltf_useful,
+        ]
+    ).astype(np.complex64)
+
+    # HT/VHT-style 2-stream orthogonal MIMO training core. The two HT-LTF
+    # symbols use a 2x2 Walsh matrix so each RX can solve TX0/TX1 channels.
+    ht_ltf1 = _with_cp(ltf_useful, cfg)
+    ht_ltf2 = _with_cp(ltf_useful, cfg)
+    ht_ltf_start = len(short_training) + len(legacy_ltf)
+    ht_ltf1_offset = ht_ltf_start
+    ht_ltf2_offset = ht_ltf_start + cfg.sym_len
+    occupied = len(short_training) + len(legacy_ltf) + 2 * cfg.sym_len
+    guard_len = cfg.frame_len - occupied
+    if guard_len < 0:
+        raise ValueError(f"Probe period too short: frame_len={cfg.frame_len}, occupied={occupied}")
+    guard = np.zeros(guard_len, dtype=np.complex64)
+    tx0 = np.concatenate([short_training, legacy_ltf, ht_ltf1, ht_ltf2, guard]).astype(np.complex64)
+    tx1 = np.concatenate([short_training, legacy_ltf, ht_ltf1, -ht_ltf2, guard]).astype(np.complex64)
+    training_freq_scaled = (digital_scale * training_freq_raw).astype(np.complex64)
+    stf_len = len(short_training)
+    ltf_start = stf_len
+    meta = {
+        **asdict(cfg),
+        "frame_format": "wifi_ht20_2x2_ltf_sounding",
+        "sym_len": cfg.sym_len,
+        "frame_len": cfg.frame_len,
+        "active_carriers": cfg.active_carriers.tolist(),
+        "digital_scale": float(digital_scale),
+        "short_training_len": stf_len,
+        "short_training_repeats": SHORT_TRAINING_REPEATS,
+        "long_training_cp_len": LONG_TRAINING_CP_LEN,
+        "legacy_ltf_len": len(legacy_ltf),
+        "sync_training_len": len(short_training) + len(legacy_ltf),
+        "ltf1_offset": ltf_start + LONG_TRAINING_CP_LEN,
+        "ltf2_offset": ltf_start + LONG_TRAINING_CP_LEN + cfg.fft_len,
+        "mimo_ltf_matrix": [[1, 1], [1, -1]],
+        "ht_ltf1_offset": ht_ltf1_offset,
+        "ht_ltf2_offset": ht_ltf2_offset,
+        "ht_ltf_offsets": [ht_ltf1_offset, ht_ltf2_offset],
+        "occupied_len": occupied,
+        "guard_len": guard_len,
+        "training_freq_real": training_freq_scaled.real.tolist(),
+        "training_freq_imag": training_freq_scaled.imag.tolist(),
+    }
+    return tx0, tx1, meta
+
+
+def make_waveforms(cfg: ProbeConfig = CFG):
+    if cfg.frame_format == "wifi_like_stf_ltf_tdm_mimo":
+        return make_legacy_tdm_waveforms(cfg)
+    if cfg.frame_format == "wifi_ht20_2x2_ltf_sounding":
+        return make_wifi_ht20_2x2_ltf_waveforms(cfg)
+    raise ValueError(f"Unsupported frame_format: {cfg.frame_format}")
 
 def save_probe_metadata(path: str | Path, cfg: ProbeConfig = CFG) -> None:
     _, _, meta = make_waveforms(cfg)

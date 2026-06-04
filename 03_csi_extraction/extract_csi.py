@@ -17,24 +17,45 @@ def normalized_corr_metric(x: np.ndarray, template: np.ndarray) -> np.ndarray:
     return (np.abs(corr) ** 2 / (win_energy * template_energy + 1e-12)).astype(np.float32)
 
 
-def legacy_preamble_template(meta: dict, cfg: ProbeConfig) -> np.ndarray:
-    preamble_freq = (
-        np.array(meta["preamble_freq_real"], dtype=np.float32)
-        + 1j * np.array(meta["preamble_freq_imag"], dtype=np.float32)
-    ).astype(np.complex64)
-    useful = np.fft.ifft(preamble_freq).astype(np.complex64)
-    symbol = np.concatenate([useful[-cfg.cp_len:], useful]).astype(np.complex64)
-    return np.concatenate([symbol, symbol]).astype(np.complex64)
-
 def extract_one_frame(
     rx: np.ndarray,
     start: int,
     cfg: ProbeConfig,
-    pilot_freq: np.ndarray,
+    reference_freq: np.ndarray,
     meta: dict | None = None,
 ):
     s, nfft, cp = cfg.sym_len, cfg.fft_len, cfg.cp_len
     meta = meta or {}
+
+    if "ht_ltf_offsets" in meta:
+        ht_offsets = [int(x) for x in meta["ht_ltf_offsets"]]
+        required_len = max(ht_offsets) + s
+        ltf1_offset = int(meta["ltf1_offset"])
+        ltf2_offset = int(meta["ltf2_offset"])
+        a = rx[start + ltf1_offset:start + ltf1_offset + nfft]
+        b = rx[start + ltf2_offset:start + ltf2_offset + nfft]
+        if len(a) != nfft or len(b) != nfft:
+            raise ValueError("Truncated LTF")
+        omega = float(np.angle(np.vdot(a, b)) / nfft)
+        seg = rx[start:start + required_len]
+        if len(seg) != required_len:
+            raise ValueError("Truncated frame")
+        idx = np.arange(len(seg), dtype=np.float64)
+        seg = seg * np.exp(-1j * omega * idx)
+
+        y_symbols = []
+        for offset in ht_offsets[:2]:
+            symbol = seg[offset + cp:offset + cp + nfft]
+            if len(symbol) != nfft:
+                raise ValueError("Truncated HT-LTF")
+            y_symbols.append(np.fft.fft(symbol))
+        y1, y2 = y_symbols
+        bins = np.array([int(k) % nfft for k in cfg.active_carriers], dtype=np.int32)
+        x = reference_freq[bins]
+        h_tx0 = (y1[bins] + y2[bins]) / (2.0 * x + 1e-12)
+        h_tx1 = (y1[bins] - y2[bins]) / (2.0 * x + 1e-12)
+        return np.stack([h_tx0, h_tx1], axis=0).astype(np.complex64), omega
+
     if "ltf1_offset" in meta and "ltf2_offset" in meta:
         ltf1_offset = int(meta["ltf1_offset"])
         ltf2_offset = int(meta["ltf2_offset"])
@@ -68,7 +89,7 @@ def extract_one_frame(
     y0 = np.mean(np.stack(y0_repeats, axis=0), axis=0)
     y1 = np.mean(np.stack(y1_repeats, axis=0), axis=0)
     bins = np.array([int(k) % nfft for k in cfg.active_carriers], dtype=np.int32)
-    x = pilot_freq[bins]
+    x = reference_freq[bins]
     return np.stack([y0[bins] / (x + 1e-12), y1[bins] / (x + 1e-12)], axis=0).astype(np.complex64), omega
 
 def parse_args():
@@ -94,13 +115,14 @@ def main():
                       fft_len=int(meta0["fft_len"]), cp_len=int(meta0["cp_len"]),
                       probe_rate_hz=float(meta0["probe_rate_hz"]), tx_scale=float(meta0["tx_scale"]),
                       pilot_repeats_per_tx=int(meta0.get("pilot_repeats_per_tx", 1)),
+                      frame_format=str(meta0.get("frame_format", "wifi_like_stf_ltf_tdm_mimo")),
                       seed=int(meta0["seed"]))
+    tx0, _, meta = make_waveforms(cfg)
+    template = tx0[: int(meta["sync_training_len"])]
     if meta0.get("frame_format") == "wifi_like_stf_ltf_tdm_mimo":
-        tx0, _, meta = make_waveforms(cfg)
-        template = tx0[: int(meta["sync_training_len"])]
+        reference_freq = (np.array(meta["pilot_freq_real"], dtype=np.float32) + 1j * np.array(meta["pilot_freq_imag"], dtype=np.float32)).astype(np.complex64)
     else:
-        meta = meta0
-        template = legacy_preamble_template(meta0, cfg)
+        reference_freq = (np.array(meta["training_freq_real"], dtype=np.float32) + 1j * np.array(meta["training_freq_imag"], dtype=np.float32)).astype(np.complex64)
     metric0 = normalized_corr_metric(rx0, template)
     metric1 = normalized_corr_metric(rx1, template)
     if float(np.max(metric1)) > float(np.max(metric0)):
@@ -110,7 +132,9 @@ def main():
         metric = metric0
         sync_channel = "rx0"
     peaks, _ = find_peaks(metric, height=a.threshold, distance=int(round(a.min_frame_ratio * cfg.frame_len)))
-    if "tx1_pilot_offsets" in meta:
+    if "ht_ltf_offsets" in meta:
+        required_len = max(int(x) for x in meta["ht_ltf_offsets"]) + cfg.sym_len
+    elif "tx1_pilot_offsets" in meta:
         required_len = max(int(x) for x in meta["tx1_pilot_offsets"]) + cfg.sym_len
     else:
         required_len = int(meta.get("tx1_pilot_offset", 3 * cfg.sym_len)) + cfg.sym_len
@@ -118,12 +142,11 @@ def main():
     if not a.free_running_peaks and len(peaks):
         first = int(peaks[0])
         peaks = np.arange(first, n - required_len + 1, cfg.frame_len, dtype=np.int64)
-    pilot_freq = (np.array(meta["pilot_freq_real"], dtype=np.float32) + 1j * np.array(meta["pilot_freq_imag"], dtype=np.float32)).astype(np.complex64)
     frames, starts, cfo = [], [], []
     for start in peaks:
         try:
-            h0, w0 = extract_one_frame(rx0, int(start), cfg, pilot_freq, meta)
-            h1, w1 = extract_one_frame(rx1, int(start), cfg, pilot_freq, meta)
+            h0, w0 = extract_one_frame(rx0, int(start), cfg, reference_freq, meta)
+            h1, w1 = extract_one_frame(rx1, int(start), cfg, reference_freq, meta)
         except ValueError:
             continue
         frames.append(np.stack([h0, h1], axis=0)); starts.append(int(start)); cfo.append([w0, w1])
@@ -135,6 +158,7 @@ def main():
     info = {"H_shape": list(H.shape), "layout": "[frame, rx, tx, active_carrier]", "active_carriers": cfg.active_carriers.tolist(),
             "frame_starts_samples": starts, "probe_rate_hz": cfg.probe_rate_hz,
             "sync_channel": sync_channel,
+            "frame_format": str(meta.get("frame_format", "unknown")),
             "sync_metric_max_rx0": float(np.max(metric0)),
             "sync_metric_max_rx1": float(np.max(metric1)),
             "frame_start_mode": "free_running_peaks" if a.free_running_peaks else "fixed_grid_from_first_peak",

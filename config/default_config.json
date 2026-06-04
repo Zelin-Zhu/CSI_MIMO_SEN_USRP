@@ -16,7 +16,7 @@
     "probe_rate_hz": 1000.0,
     "tx_scale": 0.3,
     "pilot_repeats_per_tx": 4,
-    "frame_format": "wifi_like_stf_ltf_tdm_mimo"
+    "frame_format": "wifi_ht20_2x2_ltf_sounding"
   },
   "capture": {
     "seconds": 5.0,

@@ -11,11 +11,12 @@ from common.frame_design import CFG, ProbeConfig, make_waveforms, runtime_defaul
 
 class MimoProbeTx(gr.top_block):
     def __init__(self, args: str, freq: float, rate: float, gain: float, antenna: str,
-                 probe_rate: float, tx_scale: float, pilot_repeats_per_tx: int):
+                 probe_rate: float, tx_scale: float, pilot_repeats_per_tx: int, frame_format: str):
         super().__init__("2xTX OFDM CSI probe transmitter")
         cfg = ProbeConfig(sample_rate=rate, center_freq=freq, fft_len=CFG.fft_len,
                           cp_len=CFG.cp_len, probe_rate_hz=probe_rate,
                           tx_scale=tx_scale, pilot_repeats_per_tx=pilot_repeats_per_tx,
+                          frame_format=frame_format,
                           seed=CFG.seed)
         tx0, tx1, meta = make_waveforms(cfg)
         self.src0 = blocks.vector_source_c(tx0.tolist(), True, 1, [])
@@ -28,7 +29,7 @@ class MimoProbeTx(gr.top_block):
             self.usrp.set_antenna(antenna, ch)
         self.connect(self.src0, (self.usrp, 0))
         self.connect(self.src1, (self.usrp, 1))
-        print(f"TX: {freq/1e6:.6f} MHz, {rate/1e6:.3f} MS/s, probe={probe_rate:.1f} Hz, gain={gain:.1f} dB, frame={meta['frame_len']} samples, pilot_repeats={pilot_repeats_per_tx}")
+        print(f"TX: {freq/1e6:.6f} MHz, {rate/1e6:.3f} MS/s, probe={probe_rate:.1f} Hz, gain={gain:.1f} dB, frame={meta['frame_len']} samples, format={meta['frame_format']}")
 
 def parse_args():
     defaults = runtime_defaults("tx")
@@ -41,11 +42,12 @@ def parse_args():
     p.add_argument("--probe-rate", type=float, default=float(defaults["probe_rate"]))
     p.add_argument("--tx-scale", type=float, default=float(defaults["tx_scale"]))
     p.add_argument("--pilot-repeats-per-tx", type=int, default=int(defaults["pilot_repeats_per_tx"]))
+    p.add_argument("--frame-format", default=str(defaults["frame_format"]))
     return p.parse_args()
 
 def main():
     a = parse_args()
-    tb = MimoProbeTx(a.args, a.freq, a.rate, a.gain, a.antenna, a.probe_rate, a.tx_scale, a.pilot_repeats_per_tx)
+    tb = MimoProbeTx(a.args, a.freq, a.rate, a.gain, a.antenna, a.probe_rate, a.tx_scale, a.pilot_repeats_per_tx, a.frame_format)
     def stop_handler(*_):
         tb.stop(); tb.wait(); sys.exit(0)
     signal.signal(signal.SIGINT, stop_handler)

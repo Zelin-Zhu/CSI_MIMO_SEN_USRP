@@ -39,6 +39,7 @@ def load_capture(capture_dir: Path):
         probe_rate_hz=float(meta0["probe_rate_hz"]),
         tx_scale=float(meta0["tx_scale"]),
         pilot_repeats_per_tx=int(meta0.get("pilot_repeats_per_tx", 1)),
+        frame_format=str(meta0.get("frame_format", "wifi_like_stf_ltf_tdm_mimo")),
         seed=int(meta0["seed"]),
     )
     _, _, meta = make_waveforms(cfg)
@@ -164,6 +165,39 @@ def extract_frame_repeats(
     return h, cfo, delta, ltf_metric
 
 
+def extract_frame_ht_ltf(
+    sig: np.ndarray,
+    start: int,
+    cfg: ProbeConfig,
+    meta: dict,
+    training_freq: np.ndarray,
+    timing_search: int,
+):
+    nfft, cp, sym_len = cfg.fft_len, cfg.cp_len, cfg.sym_len
+    bins = np.array([int(k) % nfft for k in cfg.active_carriers], dtype=np.int32)
+    ht_offsets = [int(x) for x in meta["ht_ltf_offsets"]]
+    required_len = max(ht_offsets) + sym_len
+    delta, ltf_metric = ltf_timing_delta(sig, start, meta, nfft, timing_search)
+    refined_start = start + delta
+    if refined_start < 0 or refined_start + required_len > len(sig):
+        raise ValueError("Truncated refined frame")
+    cfo = estimate_cfo_rad_per_sample(sig, refined_start, meta, nfft)
+    seg = sig[refined_start : refined_start + required_len]
+    seg = seg * np.exp(-1j * cfo * np.arange(required_len, dtype=np.float64))
+    y_symbols = []
+    for offset in ht_offsets[:2]:
+        symbol = seg[offset + cp : offset + cp + nfft]
+        if len(symbol) != nfft:
+            raise ValueError("Truncated HT-LTF symbol")
+        y_symbols.append(np.fft.fft(symbol))
+    y1, y2 = y_symbols
+    x = training_freq[bins]
+    h_tx0 = (y1[bins] + y2[bins]) / (2.0 * x + 1e-12)
+    h_tx1 = (y1[bins] - y2[bins]) / (2.0 * x + 1e-12)
+    h = np.stack([h_tx0, h_tx1], axis=0).astype(np.complex64)
+    return h, cfo, delta, ltf_metric
+
+
 def align_repeats_to_first(hrep: np.ndarray, carriers: np.ndarray) -> np.ndarray:
     out = hrep.copy()
     for frame in range(out.shape[0]):
@@ -174,6 +208,20 @@ def align_repeats_to_first(hrep: np.ndarray, carriers: np.ndarray) -> np.ndarray
                     out[frame, rx, tx, repeat] = remove_linear_phase_to_reference(
                         out[frame, rx, tx, repeat], reference, carriers
                     )
+    return out
+
+
+def sanitize_frames_to_first(h: np.ndarray, carriers: np.ndarray) -> np.ndarray:
+    out = h.copy()
+    if out.shape[0] < 2:
+        return out
+    reference = out[0]
+    for frame in range(1, out.shape[0]):
+        for rx in range(out.shape[1]):
+            for tx in range(out.shape[2]):
+                out[frame, rx, tx] = remove_linear_phase_to_reference(
+                    out[frame, rx, tx], reference[rx, tx], carriers
+                )
     return out
 
 
@@ -234,7 +282,10 @@ def main() -> None:
     rx0, rx1, capture_cfg, meta, cfg = load_capture(capture_dir)
     template, _, _ = make_waveforms(cfg)
     template = template[: int(meta["sync_training_len"])]
-    required_len = max(int(x) for x in meta["tx1_pilot_offsets"]) + cfg.sym_len
+    if "ht_ltf_offsets" in meta:
+        required_len = max(int(x) for x in meta["ht_ltf_offsets"]) + cfg.sym_len
+    else:
+        required_len = max(int(x) for x in meta["tx1_pilot_offsets"]) + cfg.sym_len
     starts, sync_info = find_frame_grid(
         rx0,
         rx1,
@@ -245,6 +296,83 @@ def main() -> None:
         args.min_frame_ratio,
         args.max_frames,
     )
+
+    if "ht_ltf_offsets" in meta:
+        training_freq = (
+            np.array(meta["training_freq_real"], dtype=np.float32)
+            + 1j * np.array(meta["training_freq_imag"], dtype=np.float32)
+        ).astype(np.complex64)
+        frames = []
+        cfo = []
+        timing_delta = []
+        ltf_metric = []
+        kept_starts = []
+        for start in starts:
+            try:
+                rx_frames = []
+                rx_cfo = []
+                rx_delta = []
+                rx_ltf = []
+                for sig in (rx0, rx1):
+                    h_one, cfo_one, delta, ltf_one = extract_frame_ht_ltf(
+                        sig, int(start), cfg, meta, training_freq, args.timing_search
+                    )
+                    rx_frames.append(h_one)
+                    rx_cfo.append(cfo_one)
+                    rx_delta.append(delta)
+                    rx_ltf.append(ltf_one)
+            except ValueError:
+                continue
+            frames.append(np.stack(rx_frames, axis=0))
+            cfo.append(rx_cfo)
+            timing_delta.append(rx_delta)
+            ltf_metric.append(rx_ltf)
+            kept_starts.append(int(start))
+
+        if not frames:
+            raise RuntimeError("No frames extracted.")
+
+        h_raw = np.stack(frames, axis=0).astype(np.complex64)
+        carriers = cfg.active_carriers.astype(np.float64)
+        h_sanitized = sanitize_frames_to_first(h_raw, carriers)
+        np.save(out_dir / "H_wifi_ht_ltf_raw.npy", h_raw)
+        np.save(out_dir / "H_wifi_ht_ltf_phase_sanitized.npy", h_sanitized)
+
+        cfo_hz = np.asarray(cfo, dtype=np.float64) * cfg.sample_rate / (2.0 * np.pi)
+        timing_delta = np.asarray(timing_delta, dtype=np.int32)
+        ltf_metric = np.asarray(ltf_metric, dtype=np.float64)
+        summary = {
+            "capture_dir": str(capture_dir),
+            "out_dir": str(out_dir),
+            "frame_format": str(meta["frame_format"]),
+            "H_shape": list(h_raw.shape),
+            "layout": "[frame, rx, tx, active_carrier]",
+            "active_carriers": cfg.active_carriers.tolist(),
+            "sample_rate_hz": float(capture_cfg["sample_rate"]),
+            "probe_rate_hz": float(meta["probe_rate_hz"]),
+            "frame_len": int(meta["frame_len"]),
+            "sync": sync_info,
+            "frame_starts_samples": kept_starts,
+            "timing_search_samples": int(args.timing_search),
+            "timing_delta_mean_per_rx": np.mean(timing_delta, axis=0).tolist(),
+            "timing_delta_std_per_rx": np.std(timing_delta, axis=0).tolist(),
+            "ltf_metric_mean_per_rx": np.mean(ltf_metric, axis=0).tolist(),
+            "mean_cfo_hz_per_rx": np.mean(cfo_hz, axis=0).tolist(),
+            "std_cfo_hz_per_rx": np.std(cfo_hz, axis=0).tolist(),
+            "adjacent_frame_raw": summarize_adjacent_frames(h_raw),
+            "adjacent_frame_phase_sanitized": summarize_adjacent_frames(h_sanitized),
+            "notes": [
+                "The raw file is the main CSI output after packet detection, LTF timing, CFO correction, and 2x2 HT-LTF decoding.",
+                "The phase-sanitized file removes frame-to-frame common phase and linear phase slope relative to the first frame for diagnostics.",
+                "This frame is WiFi-like HT-LTF sounding, not a complete standards-decodable WiFi PPDU.",
+            ],
+        }
+        (out_dir / "wifi_ht_ltf_extraction_summary.json").write_text(
+            json.dumps(summary, indent=2), encoding="utf-8"
+        )
+        print(json.dumps({k: v for k, v in summary.items() if k != "frame_starts_samples"}, indent=2))
+        return
+
     pilot_freq = (
         np.array(meta["pilot_freq_real"], dtype=np.float32)
         + 1j * np.array(meta["pilot_freq_imag"], dtype=np.float32)
@@ -296,8 +424,10 @@ def main() -> None:
     summary = {
         "capture_dir": str(capture_dir),
         "out_dir": str(out_dir),
+        "frame_format": str(meta.get("frame_format", "wifi_like_stf_ltf_tdm_mimo")),
         "H_shape": list(h_raw.shape),
         "H_repeat_shape": list(hrep_raw.shape),
+        "active_carriers": cfg.active_carriers.tolist(),
         "sample_rate_hz": float(capture_cfg["sample_rate"]),
         "probe_rate_hz": float(meta["probe_rate_hz"]),
         "frame_len": int(meta["frame_len"]),

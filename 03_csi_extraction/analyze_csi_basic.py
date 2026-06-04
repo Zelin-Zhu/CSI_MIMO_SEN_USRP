@@ -25,6 +25,16 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("results/raw_iq_001"),
     )
+    parser.add_argument(
+        "--h-file",
+        type=Path,
+        help="Optional CSI matrix path. Defaults to <capture-dir>/H.npy.",
+    )
+    parser.add_argument(
+        "--info-file",
+        type=Path,
+        help="Optional CSI info/summary JSON. Defaults to <capture-dir>/csi_info.json.",
+    )
     return parser.parse_args()
 
 
@@ -32,8 +42,10 @@ def main() -> None:
     args = parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    h = np.load(args.capture_dir / "H.npy")
-    info = json.loads((args.capture_dir / "csi_info.json").read_text(encoding="utf-8"))
+    h_path = args.h_file or (args.capture_dir / "H.npy")
+    info_path = args.info_file or (args.capture_dir / "csi_info.json")
+    h = np.load(h_path)
+    info = json.loads(info_path.read_text(encoding="utf-8"))
     cap = json.loads((args.capture_dir / "capture_config.json").read_text(encoding="utf-8"))
 
     active_carriers = np.asarray(info["active_carriers"], dtype=np.int32)
@@ -57,6 +69,8 @@ def main() -> None:
 
     summary = {
         "capture_dir": str(args.capture_dir),
+        "h_file": str(h_path),
+        "info_file": str(info_path),
         "H_shape": list(h.shape),
         "layout": "[frame, rx, tx, active_carrier]",
         "center_freq_hz": float(cap["center_freq"]),

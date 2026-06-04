@@ -161,6 +161,7 @@ class CsiMonitorWindow(Qt.QWidget):
         probe_rate: float,
         tx_scale: float,
         pilot_repeats_per_tx: int,
+        frame_format: str,
     ):
         super().__init__()
         self.setWindowTitle("USRP B210 realtime CSI monitor")
@@ -179,14 +180,21 @@ class CsiMonitorWindow(Qt.QWidget):
             probe_rate_hz=probe_rate,
             tx_scale=tx_scale,
             pilot_repeats_per_tx=pilot_repeats_per_tx,
+            frame_format=frame_format,
             seed=CFG.seed,
         )
         self.tx0, _, self.meta = make_waveforms(self.cfg)
         self.template = self.tx0[: int(self.meta.get("sync_training_len", 2 * self.cfg.sym_len))]
-        self.pilot_freq = (
-            np.array(self.meta["pilot_freq_real"], dtype=np.float32)
-            + 1j * np.array(self.meta["pilot_freq_imag"], dtype=np.float32)
-        ).astype(np.complex64)
+        if "training_freq_real" in self.meta and "ht_ltf_offsets" in self.meta:
+            self.reference_freq = (
+                np.array(self.meta["training_freq_real"], dtype=np.float32)
+                + 1j * np.array(self.meta["training_freq_imag"], dtype=np.float32)
+            ).astype(np.complex64)
+        else:
+            self.reference_freq = (
+                np.array(self.meta["pilot_freq_real"], dtype=np.float32)
+                + 1j * np.array(self.meta["pilot_freq_imag"], dtype=np.float32)
+            ).astype(np.complex64)
 
         self.tb = CsiMonitorTopBlock(
             device_args=device_args,
@@ -253,6 +261,7 @@ class CsiMonitorWindow(Qt.QWidget):
             f"rate={self.sample_rate / 1e6:.3f} MS/s, gain={gain:.1f} dB, antenna={antenna}, "
             f"buffer={buffer_seconds:.2f}s\n"
             f"OFDM FFT={self.cfg.fft_len}, active carriers={len(self.cfg.active_carriers)}, "
+            f"frame_format={self.cfg.frame_format}, "
             f"probe_rate={self.cfg.probe_rate_hz:.1f} Hz, tx_scale={self.cfg.tx_scale:.2f}, "
             f"pilot_repeats_per_tx={self.cfg.pilot_repeats_per_tx}, "
             f"spacing={self.cfg.subcarrier_spacing_hz / 1e3:.3f} kHz, "
@@ -279,7 +288,9 @@ class CsiMonitorWindow(Qt.QWidget):
             sync_channel = "RX0"
         distance = int(round(self.min_frame_ratio * self.cfg.frame_len))
         peaks = self._find_peaks(metric, self.threshold, distance)
-        if "tx1_pilot_offsets" in self.meta:
+        if "ht_ltf_offsets" in self.meta:
+            required_len = max(int(x) for x in self.meta["ht_ltf_offsets"]) + self.cfg.sym_len
+        elif "tx1_pilot_offsets" in self.meta:
             required_len = max(int(x) for x in self.meta["tx1_pilot_offsets"]) + self.cfg.sym_len
         else:
             required_len = int(self.meta.get("tx1_pilot_offset", 3 * self.cfg.sym_len)) + self.cfg.sym_len
@@ -291,8 +302,8 @@ class CsiMonitorWindow(Qt.QWidget):
         cfo_hz = []
         for start in peaks[-self.max_frames_display :]:
             try:
-                h0, w0 = extract_one_frame(rx0, int(start), self.cfg, self.pilot_freq, self.meta)
-                h1, w1 = extract_one_frame(rx1, int(start), self.cfg, self.pilot_freq, self.meta)
+                h0, w0 = extract_one_frame(rx0, int(start), self.cfg, self.reference_freq, self.meta)
+                h1, w1 = extract_one_frame(rx1, int(start), self.cfg, self.reference_freq, self.meta)
             except ValueError:
                 continue
             frames.append(np.stack([h0, h1], axis=0))
@@ -368,6 +379,7 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=int(defaults.get("pilot_repeats_per_tx", tx_defaults["pilot_repeats_per_tx"])),
     )
+    parser.add_argument("--frame-format", default=str(defaults.get("frame_format", tx_defaults["frame_format"])))
     return parser.parse_args()
 
 
@@ -388,6 +400,7 @@ def main() -> None:
         probe_rate=args.probe_rate,
         tx_scale=args.tx_scale,
         pilot_repeats_per_tx=args.pilot_repeats_per_tx,
+        frame_format=args.frame_format,
     )
     window.start()
     window.show()

@@ -11,7 +11,7 @@ workflow into three stages:
 
 The current target setup is two USRP B210 devices, one for 2-channel TX and one
 for 2-channel RX. The default configuration uses a clean 2.4 GHz test point near
-2484 MHz, 2 MS/s sampling, and a WiFi-like OFDM probe frame.
+2484 MHz, 2 MS/s sampling, and a WiFi-like HT-LTF sounding frame for 2x2 CSI.
 
 ## Repository Layout
 
@@ -72,6 +72,8 @@ Run basic CSI analysis:
 ```bash
 python3 03_csi_extraction/analyze_csi_basic.py \
   --capture-dir data/captures/raw_iq_001 \
+  --h-file results/raw_iq_001/wifi_like_debug/H_wifi_ht_ltf_raw.npy \
+  --info-file results/raw_iq_001/wifi_like_debug/wifi_ht_ltf_extraction_summary.json \
   --out-dir results/raw_iq_001
 ```
 
@@ -98,18 +100,20 @@ IQ and provides an offline WiFi-like CSI extraction pipeline with diagnostics fo
 frame detection
 LTF timing search
 CFO estimation
-pilot repeat consistency
-phase-slope correction diagnostics
+2x2 HT-LTF orthogonal channel decoding
+phase-slope sanitization diagnostics
 adjacent-frame CSI stability
 ```
 
-The next major frame-design step is 2x2 orthogonal MIMO LTF training, closer to
-commercial WiFi MIMO training than identical simultaneous LTF transmission.
+The default frame is now `wifi_ht20_2x2_ltf_sounding`: a WiFi-like CSI sounding
+frame that keeps the standard WiFi CSI-estimation idea, but is not a complete
+standards-decodable WiFi PPDU.
 
 ## Documentation
 
 ```text
 docs/hardware_setup.md
 docs/frame_design.md
+docs/wifi_csi_principle.md
 docs/troubleshooting.md
 ```
