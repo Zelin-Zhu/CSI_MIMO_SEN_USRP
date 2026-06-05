@@ -98,6 +98,13 @@ The active |H| TX row should not sit at the noise floor.
 Capture gate should show OK before saving raw IQ.
 ```
 
+At 20 MS/s, the monitor is intentionally lightweight. If the monitor still causes
+USRP overflow/underflow on a slow host, reduce its analysis load:
+
+```bash
+bash 02_iq_capture/start_rx_monitor.sh --analysis-seconds 0.005 --update-interval-ms 1500
+```
+
 The default single-TX output directories are:
 
 ```text

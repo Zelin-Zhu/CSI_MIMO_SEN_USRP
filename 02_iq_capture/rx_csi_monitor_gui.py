@@ -25,7 +25,6 @@ sys.path.insert(0, str(REPO_ROOT / "03_csi_extraction"))
 
 from common.frame_design import CFG, ProbeConfig, make_waveforms, runtime_defaults
 from extract_csi import extract_one_frame, normalized_corr_metric
-from extract_csi_wifi_like import find_frame_starts
 
 
 def db10(value: float) -> float:
@@ -167,6 +166,7 @@ class CsiMonitorWindow(Qt.QWidget):
         threshold: float,
         min_frame_ratio: float,
         max_frames_display: int,
+        analysis_seconds: float,
         probe_rate: float,
         tx_scale: float,
         pilot_repeats_per_tx: int,
@@ -195,6 +195,10 @@ class CsiMonitorWindow(Qt.QWidget):
             sync_tx_mode=sync_tx_mode,
             tx_chain_mode=tx_chain_mode,
             seed=CFG.seed,
+        )
+        self.analysis_samples = max(
+            4 * self.cfg.frame_len,
+            int(round(analysis_seconds * sample_rate)),
         )
         self.tx0, self.tx1, self.meta = make_waveforms(self.cfg)
         self.template_source = "tx0"
@@ -286,7 +290,7 @@ class CsiMonitorWindow(Qt.QWidget):
         self.static_text = (
             f"RX args={device_args!r}, freq={self.center_freq / 1e6:.6f} MHz, "
             f"rate={self.sample_rate / 1e6:.3f} MS/s, gain={gain:.1f} dB, antenna={antenna}, "
-            f"buffer={buffer_seconds:.2f}s\n"
+            f"buffer={buffer_seconds:.3f}s, analysis={self.analysis_samples / self.sample_rate * 1e3:.1f}ms\n"
             f"OFDM FFT={self.cfg.fft_len}, active carriers={len(self.cfg.active_carriers)}, "
             f"frame_format={self.cfg.frame_format}, "
             f"sync_tx_mode={self.cfg.sync_tx_mode}, "
@@ -462,49 +466,49 @@ class CsiMonitorWindow(Qt.QWidget):
             self.status_label.setText(self.static_text + "\nWaiting for buffer...")
             return
 
+        n_analysis = min(len(rx0), len(rx1), self.analysis_samples)
+        rx0_work = rx0[-n_analysis:]
+        rx1_work = rx1[-n_analysis:]
+
         if "ht_ltf_offsets" in self.meta:
             required_len = max(int(x) for x in self.meta["ht_ltf_offsets"]) + self.cfg.sym_len
         elif "tx1_pilot_offsets" in self.meta:
             required_len = max(int(x) for x in self.meta["tx1_pilot_offsets"]) + self.cfg.sym_len
         else:
             required_len = int(self.meta.get("tx1_pilot_offset", 3 * self.cfg.sym_len)) + self.cfg.sym_len
-        try:
-            starts, sync_info = find_frame_starts(
-                rx0,
-                rx1,
-                self.template,
-                self.cfg,
-                self.meta,
-                required_len,
-                self.threshold,
-                self.min_frame_ratio,
-                "stf_delay",
-                "fixed_grid",
-                320,
-                24,
-                128,
-                None,
+
+        metric0 = normalized_corr_metric(rx0_work, self.template)
+        metric1 = normalized_corr_metric(rx1_work, self.template)
+        metric0_max = float(np.max(metric0)) if len(metric0) else 0.0
+        metric1_max = float(np.max(metric1)) if len(metric1) else 0.0
+        if metric1_max > metric0_max:
+            metric = metric1
+            sync_channel = "RX1"
+        else:
+            metric = metric0
+            sync_channel = "RX0"
+
+        distance = int(round(self.min_frame_ratio * self.cfg.frame_len))
+        peaks = self._find_peaks(metric, self.threshold, distance)
+        peaks = peaks[peaks + required_len <= len(rx0_work)]
+        if len(peaks):
+            grid_base = int(peaks[0])
+            starts = np.arange(
+                grid_base,
+                len(rx0_work) - required_len + 1,
+                self.cfg.frame_len,
+                dtype=np.int64,
             )
-        except RuntimeError:
+        else:
+            grid_base = None
             starts = np.empty(0, dtype=np.int64)
-            sync_info = {
-                "sync_metric_max_rx0": 0.0,
-                "sync_metric_max_rx1": 0.0,
-                "sync_channel": "N/A",
-                "detected_peak_count": 0,
-            }
-        metric0_max = float(sync_info.get("sync_metric_max_rx0", 0.0))
-        metric1_max = float(sync_info.get("sync_metric_max_rx1", 0.0))
-        sync_channel = str(sync_info.get("sync_channel", "N/A")).upper()
-        grid_base = sync_info.get("fixed_grid_base_sample")
-        ltf_match_median = float(sync_info.get("ltf_match_median", 0.0))
 
         frames = []
         cfo_hz = []
         for start in starts[-self.max_frames_display :]:
             try:
-                h0, w0 = extract_one_frame(rx0, int(start), self.cfg, self.reference_freq, self.meta)
-                h1, w1 = extract_one_frame(rx1, int(start), self.cfg, self.reference_freq, self.meta)
+                h0, w0 = extract_one_frame(rx0_work, int(start), self.cfg, self.reference_freq, self.meta)
+                h1, w1 = extract_one_frame(rx1_work, int(start), self.cfg, self.reference_freq, self.meta)
             except ValueError:
                 continue
             frames.append(np.stack([h0, h1], axis=0))
@@ -512,8 +516,8 @@ class CsiMonitorWindow(Qt.QWidget):
 
         rx0_db = 10.0 * np.log10(float(np.mean(np.abs(rx0) ** 2)) + 1e-20)
         rx1_db = 10.0 * np.log10(float(np.mean(np.abs(rx1) ** 2)) + 1e-20)
-        expected = len(rx0) / self.cfg.frame_len
-        detected_rate = len(starts) / max(len(rx0) / self.sample_rate, 1e-9)
+        expected = len(rx0_work) / self.cfg.frame_len
+        detected_rate = len(starts) / max(len(rx0_work) / self.sample_rate, 1e-9)
 
         h_db = None
         if frames:
@@ -530,8 +534,8 @@ class CsiMonitorWindow(Qt.QWidget):
                 widget.set_matrix(None)
             cfo_text = "CFO mean RX0/RX1=N/A"
 
-        rx0_quality = self._ht_quality(rx0, starts)
-        rx1_quality = self._ht_quality(rx1, starts)
+        rx0_quality = self._ht_quality(rx0_work, starts)
+        rx1_quality = self._ht_quality(rx1_work, starts)
         self._update_quality_table(rx0_quality, rx1_quality, h_db, len(frames))
 
         self.status_label.setText(
@@ -539,7 +543,7 @@ class CsiMonitorWindow(Qt.QWidget):
             + "\n"
             + f"RX power RX0/RX1={rx0_db:.1f}/{rx1_db:.1f} dBFS, "
             + f"corr max RX0/RX1={metric0_max:.3f}/{metric1_max:.3f}, "
-            + f"sync={sync_channel}, grid_base={grid_base}, L-LTF med={ltf_match_median:.3f}, "
+            + f"sync={sync_channel}, grid_base={grid_base}, "
             + f"threshold={self.threshold:.2f}, frames={len(starts)}/{expected:.1f}, "
             + f"detected rate={detected_rate:.1f} Hz, extracted={len(frames)}, {cfo_text}"
         )
@@ -574,6 +578,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gain", type=float, default=float(defaults["gain"]))
     parser.add_argument("--antenna", default=str(defaults["antenna"]))
     parser.add_argument("--buffer-seconds", type=float, default=float(defaults["buffer_seconds"]))
+    parser.add_argument("--analysis-seconds", type=float, default=float(defaults["analysis_seconds"]))
     parser.add_argument("--update-interval-ms", type=int, default=int(defaults["update_interval_ms"]))
     parser.add_argument("--threshold", type=float, default=float(defaults["threshold"]))
     parser.add_argument("--min-frame-ratio", type=float, default=float(defaults["min_frame_ratio"]))
@@ -605,6 +610,7 @@ def main() -> None:
         threshold=args.threshold,
         min_frame_ratio=args.min_frame_ratio,
         max_frames_display=args.max_frames_display,
+        analysis_seconds=args.analysis_seconds,
         probe_rate=args.probe_rate,
         tx_scale=args.tx_scale,
         pilot_repeats_per_tx=args.pilot_repeats_per_tx,

@@ -93,11 +93,12 @@ DEFAULT_PROJECT_CONFIG: dict[str, dict[str, Any]] = {
         "fft_size": 2048,
     },
     "monitor": {
-        "buffer_seconds": 0.5,
-        "update_interval_ms": 250,
+        "buffer_seconds": 0.02,
+        "update_interval_ms": 1000,
         "threshold": 0.35,
         "min_frame_ratio": 0.80,
-        "max_frames_display": 80,
+        "max_frames_display": 40,
+        "analysis_seconds": 0.01,
     },
     "csi": {
         "threshold": 0.35,
@@ -190,6 +191,7 @@ def runtime_defaults(section: str, path: str | Path = CONFIG_PATH) -> dict[str, 
             "threshold": monitor["threshold"],
             "min_frame_ratio": monitor["min_frame_ratio"],
             "max_frames_display": monitor["max_frames_display"],
+            "analysis_seconds": monitor.get("analysis_seconds", 0.01),
         }
     if section == "rx_gui":
         return {
