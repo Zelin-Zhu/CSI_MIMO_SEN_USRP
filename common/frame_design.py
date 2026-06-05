@@ -100,6 +100,8 @@ DEFAULT_PROJECT_CONFIG: dict[str, dict[str, Any]] = {
     "csi": {
         "threshold": 0.35,
         "min_frame_ratio": 0.80,
+        "detection_mode": "stf_delay",
+        "ltf_search_samples": 320,
         "timing_search_samples": 24,
         "enable_cfo_correction": True,
         "enable_cpe_correction": True,
@@ -138,6 +140,7 @@ def runtime_defaults(section: str, path: str | Path = CONFIG_PATH) -> dict[str, 
     capture = config["capture"]
     monitor = config["monitor"]
     spectrum = config["spectrum"]
+    csi = config["csi"]
 
     common_radio = {
         "freq": radio["center_freq"],
@@ -189,6 +192,14 @@ def runtime_defaults(section: str, path: str | Path = CONFIG_PATH) -> dict[str, 
             "gain": radio["rx_gain"],
             "antenna": devices["antenna"],
             "fft_size": spectrum["fft_size"],
+        }
+    if section == "csi":
+        return {
+            "threshold": csi["threshold"],
+            "min_frame_ratio": csi["min_frame_ratio"],
+            "detection_mode": csi.get("detection_mode", "stf_delay"),
+            "ltf_search": csi.get("ltf_search_samples", 320),
+            "timing_search": csi["timing_search_samples"],
         }
     raise KeyError(f"Unknown runtime defaults section: {section}")
 

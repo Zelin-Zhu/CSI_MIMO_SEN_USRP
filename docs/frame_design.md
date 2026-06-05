@@ -13,7 +13,8 @@ fft_len = 64
 cp_len = 16
 active carriers = -26..-1 and 1..26
 subcarrier_spacing = 312.5 kHz
-probe_rate = 1000 Hz
+probe_rate = 10000 Hz
+tx_scale = 0.7
 frame_format = wifi_ht20_2x2_ltf_sounding
 sync_tx_mode = both
 ```

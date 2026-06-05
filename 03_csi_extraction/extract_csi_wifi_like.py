@@ -12,7 +12,7 @@ from scipy.signal import correlate, fftconvolve, find_peaks
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from common.frame_design import ProbeConfig, make_waveforms
+from common.frame_design import ProbeConfig, make_waveforms, runtime_defaults
 
 
 def normalized_corr_metric(x: np.ndarray, template: np.ndarray) -> np.ndarray:
@@ -22,6 +22,61 @@ def normalized_corr_metric(x: np.ndarray, template: np.ndarray) -> np.ndarray:
     )
     template_energy = float(np.sum(np.abs(template) ** 2))
     return (np.abs(corr) ** 2 / (win_energy * template_energy + 1e-12)).astype(np.float32)
+
+
+def moving_sum(x: np.ndarray, window: int) -> np.ndarray:
+    if window < 1:
+        raise ValueError("window must be positive")
+    kernel = np.ones(window, dtype=np.float32)
+    return np.convolve(x, kernel, mode="valid")
+
+
+def stf_delay_autocorr_metric(
+    x: np.ndarray,
+    period: int = 16,
+    window: int = 128,
+) -> np.ndarray:
+    """WiFi-style STF delay autocorrelation metric.
+
+    The local short training field is 16-sample periodic. This detector is less
+    sensitive to the exact channel impulse response than full-template matching.
+    """
+    if len(x) < period + window:
+        return np.empty(0, dtype=np.float32)
+    a = x[:-period]
+    b = x[period:]
+    prod = a * np.conj(b)
+    p = moving_sum(prod, window)
+    e0 = moving_sum(np.abs(a) ** 2, window)
+    e1 = moving_sum(np.abs(b) ** 2, window)
+    return (np.abs(p) ** 2 / (e0 * e1 + 1e-12)).astype(np.float32)
+
+
+def ltf_matched_timing_delta(
+    sig: np.ndarray,
+    coarse_start: int,
+    meta: dict,
+    ltf_template: np.ndarray,
+    search: int,
+) -> tuple[int, float]:
+    ltf_start = int(meta["short_training_len"])
+    best_delta = 0
+    best_metric = -1.0
+    template_energy = float(np.sum(np.abs(ltf_template) ** 2))
+    for delta in range(-search, search + 1):
+        start = coarse_start + delta + ltf_start
+        end = start + len(ltf_template)
+        if start < 0 or end > len(sig):
+            continue
+        y = sig[start:end]
+        metric = float(
+            np.abs(np.vdot(ltf_template, y)) ** 2
+            / ((np.sum(np.abs(y) ** 2) * template_energy) + 1e-12)
+        )
+        if metric > best_metric:
+            best_metric = metric
+            best_delta = delta
+    return best_delta, best_metric
 
 
 def load_capture(capture_dir: Path):
@@ -40,47 +95,80 @@ def load_capture(capture_dir: Path):
         tx_scale=float(meta0["tx_scale"]),
         pilot_repeats_per_tx=int(meta0.get("pilot_repeats_per_tx", 1)),
         frame_format=str(meta0.get("frame_format", "wifi_like_stf_ltf_tdm_mimo")),
+        sync_tx_mode=str(meta0.get("sync_tx_mode", "both")),
         seed=int(meta0["seed"]),
     )
     _, _, meta = make_waveforms(cfg)
     return rx0, rx1, capture_cfg, meta, cfg
 
 
-def find_frame_grid(
+def find_frame_starts(
     rx0: np.ndarray,
     rx1: np.ndarray,
     template: np.ndarray,
     cfg: ProbeConfig,
+    meta: dict,
     required_len: int,
     threshold: float,
     min_frame_ratio: float,
+    detection_mode: str,
+    ltf_search: int,
     max_frames: int | None,
 ):
-    metric0 = normalized_corr_metric(rx0, template)
-    metric1 = normalized_corr_metric(rx1, template)
+    if detection_mode == "template":
+        metric0 = normalized_corr_metric(rx0, template)
+        metric1 = normalized_corr_metric(rx1, template)
+    elif detection_mode == "stf_delay":
+        metric0 = stf_delay_autocorr_metric(rx0)
+        metric1 = stf_delay_autocorr_metric(rx1)
+    else:
+        raise ValueError(f"Unsupported detection mode: {detection_mode}")
+
     if float(np.max(metric1)) > float(np.max(metric0)):
         metric = metric1
+        sig = rx1
         sync_channel = "rx1"
     else:
         metric = metric0
+        sig = rx0
         sync_channel = "rx0"
+
     peaks, _ = find_peaks(
         metric,
         height=threshold,
         distance=int(round(min_frame_ratio * cfg.frame_len)),
     )
-    peaks = peaks[peaks + required_len <= min(len(rx0), len(rx1))]
     if not len(peaks):
         raise RuntimeError("No frame peaks found. Lower --threshold or check RX/TX.")
-    starts = np.arange(int(peaks[0]), min(len(rx0), len(rx1)) - required_len + 1, cfg.frame_len)
+
+    ltf_template = template[int(meta["short_training_len"]) : int(meta["sync_training_len"])]
+    refined = []
+    ltf_match = []
+    for peak in peaks:
+        delta, metric_ltf = ltf_matched_timing_delta(
+            sig, int(peak), meta, ltf_template, ltf_search
+        )
+        start = int(peak) + delta
+        if start < 0 or start + required_len > min(len(rx0), len(rx1)):
+            continue
+        refined.append(start)
+        ltf_match.append(metric_ltf)
+
+    if not refined:
+        raise RuntimeError("No refined frame starts found. Increase --ltf-search or check RX/TX.")
+    starts = np.asarray(refined, dtype=np.int64)
     if max_frames is not None:
         starts = starts[:max_frames]
     return starts.astype(np.int64), {
         "sync_channel": sync_channel,
+        "detection_mode": detection_mode,
         "sync_metric_max_rx0": float(np.max(metric0)),
         "sync_metric_max_rx1": float(np.max(metric1)),
         "first_peak": int(peaks[0]),
         "detected_peak_count": int(len(peaks)),
+        "refined_start_count": int(len(refined)),
+        "ltf_match_mean": float(np.mean(ltf_match)) if ltf_match else 0.0,
+        "ltf_match_median": float(np.median(ltf_match)) if ltf_match else 0.0,
     }
 
 
@@ -263,12 +351,29 @@ def summarize_adjacent_frames(h: np.ndarray) -> dict[str, float]:
 
 
 def parse_args() -> argparse.Namespace:
+    defaults = runtime_defaults("csi")
     parser = argparse.ArgumentParser()
     parser.add_argument("--capture-dir", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path)
-    parser.add_argument("--threshold", type=float, default=0.35)
-    parser.add_argument("--min-frame-ratio", type=float, default=0.80)
-    parser.add_argument("--timing-search", type=int, default=24)
+    parser.add_argument("--threshold", type=float, default=float(defaults["threshold"]))
+    parser.add_argument(
+        "--min-frame-ratio",
+        type=float,
+        default=float(defaults["min_frame_ratio"]),
+    )
+    parser.add_argument(
+        "--detection-mode",
+        choices=["stf_delay", "template"],
+        default=str(defaults["detection_mode"]),
+        help="Frame coarse detection mode. stf_delay is closer to WiFi packet detection.",
+    )
+    parser.add_argument(
+        "--ltf-search",
+        type=int,
+        default=int(defaults["ltf_search"]),
+        help="Search radius for L-LTF matched fine timing after coarse detection.",
+    )
+    parser.add_argument("--timing-search", type=int, default=int(defaults["timing_search"]))
     parser.add_argument("--max-frames", type=int)
     return parser.parse_args()
 
@@ -286,14 +391,17 @@ def main() -> None:
         required_len = max(int(x) for x in meta["ht_ltf_offsets"]) + cfg.sym_len
     else:
         required_len = max(int(x) for x in meta["tx1_pilot_offsets"]) + cfg.sym_len
-    starts, sync_info = find_frame_grid(
+    starts, sync_info = find_frame_starts(
         rx0,
         rx1,
         template,
         cfg,
+        meta,
         required_len,
         args.threshold,
         args.min_frame_ratio,
+        args.detection_mode,
+        args.ltf_search,
         args.max_frames,
     )
 
@@ -353,6 +461,8 @@ def main() -> None:
             "frame_len": int(meta["frame_len"]),
             "sync": sync_info,
             "frame_starts_samples": kept_starts,
+            "detection_mode": args.detection_mode,
+            "ltf_search_samples": int(args.ltf_search),
             "timing_search_samples": int(args.timing_search),
             "timing_delta_mean_per_rx": np.mean(timing_delta, axis=0).tolist(),
             "timing_delta_std_per_rx": np.std(timing_delta, axis=0).tolist(),
@@ -434,6 +544,8 @@ def main() -> None:
         "pilot_repeats_per_tx": int(meta["pilot_repeats_per_tx"]),
         "sync": sync_info,
         "frame_starts_samples": kept_starts,
+        "detection_mode": args.detection_mode,
+        "ltf_search_samples": int(args.ltf_search),
         "timing_search_samples": int(args.timing_search),
         "timing_delta_mean_per_rx": np.mean(timing_delta, axis=0).tolist(),
         "timing_delta_std_per_rx": np.std(timing_delta, axis=0).tolist(),

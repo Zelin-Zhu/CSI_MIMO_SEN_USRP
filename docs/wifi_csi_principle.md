@@ -92,13 +92,16 @@ raw IQ
 当前代码中的离线提取器重点实现：
 
 ```text
-frame detection: 使用已知同步训练段做归一化相关
-timing refinement: 在 L-LTF 附近搜索最佳重复相关位置
+frame detection: 使用 STF 的 16-sample 延迟自相关做粗检测
+timing refinement: 使用 L-LTF matched correlation 做精细定时
 CFO estimation: 使用两个连续 LTF 的相位差估计 CFO
 CFO correction: 对 frame 内样本做复指数相位补偿
 HT-LTF extraction: 对两个 HT-LTF 符号去 CP 后 FFT
 MIMO decoding: 使用 (Y1+Y2)/(2X) 和 (Y1-Y2)/(2X)
 ```
+
+旧的完整同步模板相关仍可作为 debug 对比，但不应作为主 packet
+detection 方法。标准 WiFi 风格的 STF 延迟自相关对多径和信道响应更稳健。
 
 ## 5. CSI Sanitization 的位置
 

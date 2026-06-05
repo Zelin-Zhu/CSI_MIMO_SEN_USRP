@@ -14,7 +14,7 @@
     "fft_len": 64,
     "cp_len": 16,
     "probe_rate_hz": 10000.0,
-    "tx_scale": 0.3,
+    "tx_scale": 0.7,
     "pilot_repeats_per_tx": 4,
     "frame_format": "wifi_ht20_2x2_ltf_sounding",
     "sync_tx_mode": "both"
@@ -37,6 +37,8 @@
   "csi": {
     "threshold": 0.35,
     "min_frame_ratio": 0.8,
+    "detection_mode": "stf_delay",
+    "ltf_search_samples": 320,
     "timing_search_samples": 24,
     "enable_cfo_correction": true,
     "enable_cpe_correction": true,

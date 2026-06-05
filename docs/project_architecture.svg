@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Project Architecture</title>
+  <desc id="desc">Mermaid-style architecture diagram for the USRP B210 CSI MIMO sensing project.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 42px; font-weight: 700; fill: #111; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 21px; fill: #555; }
+      .box-title { font-family: Arial, sans-serif; font-size: 25px; font-weight: 700; fill: #111; }
+      .text { font-family: Arial, sans-serif; font-size: 18px; fill: #333; }
+      .small { font-family: Arial, sans-serif; font-size: 16px; fill: #555; }
+      .code { font-family: Consolas, "Courier New", monospace; font-size: 16px; fill: #333; }
+      .box { fill: #fff; stroke: #333; stroke-width: 2.2; rx: 12; }
+      .config { fill: #fff7df; stroke: #333; stroke-width: 2.2; rx: 12; }
+      .data { fill: #eef7ff; stroke: #333; stroke-width: 2.2; rx: 12; }
+      .stage { fill: #f7f7f7; stroke: #333; stroke-width: 2.2; rx: 12; }
+      .arrow { stroke: #333; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+      .dash { stroke: #777; stroke-width: 2; fill: none; stroke-dasharray: 8 7; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="#ffffff"/>
+  <text x="70" y="74" class="title">USRP B210 2x2 MIMO CSI Sensing Architecture</text>
+  <text x="72" y="112" class="subtitle">1890 MHz / 20 MS/s / WiFi-like HT-LTF sounding / raw IQ to CSI</text>
+
+  <!-- Shared config -->
+  <rect x="80" y="170" width="300" height="170" class="config"/>
+  <text x="110" y="215" class="box-title">Shared Config</text>
+  <text x="110" y="252" class="code">config/default_config.json</text>
+  <text x="110" y="282" class="small">frequency, rate, gain</text>
+  <text x="110" y="308" class="small">probe_rate, frame mode</text>
+
+  <rect x="80" y="385" width="300" height="170" class="config"/>
+  <text x="110" y="430" class="box-title">Frame Design</text>
+  <text x="110" y="467" class="code">common/frame_design.py</text>
+  <text x="110" y="497" class="small">STF / L-LTF / HT-LTF</text>
+  <text x="110" y="523" class="small">sync: both or tx0_only</text>
+
+  <!-- Main workflow -->
+  <rect x="470" y="160" width="300" height="180" class="stage"/>
+  <text x="500" y="205" class="box-title">01 Spectrum Survey</text>
+  <text x="500" y="245" class="code">rx_spectrum_gui.py</text>
+  <text x="500" y="278" class="text">Find clean RF span</text>
+  <text x="500" y="306" class="small">default: 1880..1900 MHz</text>
+
+  <rect x="870" y="160" width="300" height="180" class="stage"/>
+  <text x="900" y="205" class="box-title">02 TX Probe</text>
+  <text x="900" y="245" class="code">tx_mimo_probe.py</text>
+  <text x="900" y="278" class="text">2xTX WiFi-like frame</text>
+  <text x="900" y="306" class="small">HT-LTF orthogonal sounding</text>
+
+  <rect x="870" y="430" width="300" height="180" class="stage"/>
+  <text x="900" y="475" class="box-title">02 RX Capture</text>
+  <text x="900" y="515" class="code">rx_capture_2ch.py</text>
+  <text x="900" y="548" class="text">2xRX raw IQ capture</text>
+  <text x="900" y="576" class="small">rx0.fc32, rx1.fc32, metadata</text>
+
+  <rect x="1260" y="430" width="280" height="180" class="data"/>
+  <text x="1290" y="475" class="box-title">Raw IQ Data</text>
+  <text x="1290" y="515" class="code">data/captures/*</text>
+  <text x="1290" y="548" class="text">local artifact</text>
+  <text x="1290" y="576" class="small">ignored by Git by default</text>
+
+  <rect x="870" y="690" width="300" height="160" class="stage"/>
+  <text x="900" y="735" class="box-title">03 CSI Extraction</text>
+  <text x="900" y="775" class="code">extract_csi_wifi_like.py</text>
+  <text x="900" y="808" class="text">sync, CFO, HT-LTF decode</text>
+
+  <rect x="1260" y="690" width="280" height="160" class="data"/>
+  <text x="1290" y="735" class="box-title">CSI Analysis</text>
+  <text x="1290" y="775" class="code">analyze_csi_basic.py</text>
+  <text x="1290" y="808" class="text">H, plots, metrics</text>
+
+  <!-- RF channel -->
+  <rect x="870" y="355" width="300" height="45" fill="#ffffff" stroke="#333" stroke-width="2" rx="20"/>
+  <text x="956" y="384" class="text">RF Channel</text>
+
+  <!-- Arrows -->
+  <path class="arrow" d="M 770 250 L 860 250"/>
+  <path class="arrow" d="M 1020 340 L 1020 430"/>
+  <path class="arrow" d="M 1170 520 L 1250 520"/>
+  <path class="arrow" d="M 1400 610 L 1400 665 L 1170 770"/>
+  <path class="arrow" d="M 1170 770 L 1250 770"/>
+
+  <!-- Config dashed arrows -->
+  <path class="dash" d="M 380 250 L 460 250"/>
+  <path class="dash" d="M 380 470 C 560 500, 690 300, 860 250"/>
+  <path class="dash" d="M 380 470 C 600 620, 700 740, 860 770"/>
+
+  <!-- Monitor side branch -->
+  <rect x="470" y="430" width="300" height="180" class="stage"/>
+  <text x="500" y="475" class="box-title">Realtime Monitor</text>
+  <text x="500" y="515" class="code">rx_csi_monitor_gui.py</text>
+  <text x="500" y="548" class="text">tune gain and threshold</text>
+  <text x="500" y="576" class="small">watch corr, power, H heatmap</text>
+
+  <path class="arrow" d="M 870 520 L 780 520"/>
+  <path class="dash" d="M 380 470 L 460 520"/>
+</svg>

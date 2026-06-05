@@ -58,14 +58,14 @@ If packet correlation stays near the noise floor, test single-chain sync while
 keeping 2x2 HT-LTF sounding:
 
 ```bash
-bash 02_iq_capture/start_rx_monitor.sh --probe-rate 10000 --sync-tx-mode tx0_only --threshold 0.03
-bash 02_iq_capture/start_tx.sh --probe-rate 10000 --sync-tx-mode tx0_only --gain 40 --tx-scale 0.5
+bash 02_iq_capture/start_rx_monitor.sh --sync-tx-mode tx0_only --threshold 0.2
+bash 02_iq_capture/start_tx.sh --sync-tx-mode tx0_only
 ```
 
 Capture raw IQ:
 
 ```bash
-bash 02_iq_capture/capture_raw_iq.sh data/captures/raw_iq_001 5
+bash 02_iq_capture/capture_raw_iq.sh
 ```
 
 Extract CSI offline:
