@@ -25,6 +25,7 @@ sys.path.insert(0, str(REPO_ROOT / "03_csi_extraction"))
 
 from common.frame_design import CFG, ProbeConfig, make_waveforms, runtime_defaults
 from extract_csi import extract_one_frame, normalized_corr_metric
+from extract_csi_wifi_like import find_frame_starts
 
 
 def db10(value: float) -> float:
@@ -238,7 +239,7 @@ class CsiMonitorWindow(Qt.QWidget):
         self.threshold_value = Qt.QLabel()
         controls.addWidget(self.threshold_value)
 
-        self.quality_table = Qt.QTableWidget(6, 5)
+        self.quality_table = Qt.QTableWidget(7, 5)
         self.quality_table.setHorizontalHeaderLabels(
             ["Metric", "RX0", "RX1", "Target", "Status"]
         )
@@ -310,18 +311,44 @@ class CsiMonitorWindow(Qt.QWidget):
 
     def _ht_quality(self, rx: np.ndarray, starts: np.ndarray) -> dict[str, float]:
         if "ht_ltf_offsets" not in self.meta or len(starts) == 0:
-            return {"ht1_snr_db": 0.0, "ht2_snr_db": 0.0, "guard_dbfs": 0.0}
+            return {
+                "ht1_snr_db": 0.0,
+                "ht2_snr_db": 0.0,
+                "ht2_rel_db": 0.0,
+                "guard_dbfs": 0.0,
+            }
         starts = starts[-min(len(starts), self.max_frames_display) :]
         ht1_offset = int(self.meta["ht_ltf1_offset"])
         ht2_offset = int(self.meta["ht_ltf2_offset"])
         guard_offset = int(self.meta["occupied_len"])
         guard_len = max(1, min(400, self.cfg.frame_len - guard_offset))
-        ht1 = self._frame_region_power(rx, starts, ht1_offset, self.cfg.sym_len)
-        ht2 = self._frame_region_power(rx, starts, ht2_offset, self.cfg.sym_len)
         guard = self._frame_region_power(rx, starts, guard_offset, guard_len)
+
+        bins = np.array([int(k) % self.cfg.fft_len for k in self.cfg.active_carriers], dtype=np.int32)
+        inactive = np.setdiff1d(np.arange(self.cfg.fft_len), bins)
+
+        def active_inactive_power(offset: int) -> tuple[float, float]:
+            active_power = []
+            inactive_power = []
+            for start in starts:
+                begin = int(start) + offset + self.cfg.cp_len
+                end = begin + self.cfg.fft_len
+                if begin < 0 or end > len(rx):
+                    continue
+                symbol = rx[begin:end]
+                spectrum = np.fft.fft(symbol)
+                active_power.append(float(np.mean(np.abs(spectrum[bins]) ** 2)))
+                inactive_power.append(float(np.mean(np.abs(spectrum[inactive]) ** 2)))
+            if not active_power:
+                return 0.0, 0.0
+            return float(np.mean(active_power)), float(np.mean(inactive_power))
+
+        ht1_active, ht1_inactive = active_inactive_power(ht1_offset)
+        ht2_active, ht2_inactive = active_inactive_power(ht2_offset)
         return {
-            "ht1_snr_db": db10(ht1 / (guard + 1e-20)),
-            "ht2_snr_db": db10(ht2 / (guard + 1e-20)),
+            "ht1_snr_db": db10(ht1_active / (ht1_inactive + 1e-20)),
+            "ht2_snr_db": db10(ht2_active / (ht2_inactive + 1e-20)),
+            "ht2_rel_db": db10(ht2_active / (ht1_active + 1e-20)),
             "guard_dbfs": db10(guard),
         }
 
@@ -369,6 +396,14 @@ class CsiMonitorWindow(Qt.QWidget):
         )
         self._set_quality_row(
             2,
+            "HT2/HT1 power",
+            f"{rx0_quality['ht2_rel_db']:.1f} dB",
+            f"{rx1_quality['ht2_rel_db']:.1f} dB",
+            "> -6 dB",
+            min(rx0_quality["ht2_rel_db"], rx1_quality["ht2_rel_db"]) >= -6.0,
+        )
+        self._set_quality_row(
+            3,
             "Guard power",
             f"{rx0_quality['guard_dbfs']:.1f} dBFS",
             f"{rx1_quality['guard_dbfs']:.1f} dBFS",
@@ -396,7 +431,7 @@ class CsiMonitorWindow(Qt.QWidget):
             path_ok = all(means[index] > -80.0 for index in active_indices)
 
         self._set_quality_row(
-            3,
+            4,
             "|H| TX0",
             path_values[0],
             path_values[2],
@@ -404,7 +439,7 @@ class CsiMonitorWindow(Qt.QWidget):
             path_ok if self.cfg.tx_chain_mode != "tx1_only" else True,
         )
         self._set_quality_row(
-            4,
+            5,
             "|H| TX1",
             path_values[1],
             path_values[3],
@@ -413,7 +448,7 @@ class CsiMonitorWindow(Qt.QWidget):
         )
         ready = frame_count > 0 and ht1_ok and ht2_ok and path_ok
         self._set_quality_row(
-            5,
+            6,
             "Capture gate",
             f"frames={frame_count}",
             "",
@@ -427,31 +462,46 @@ class CsiMonitorWindow(Qt.QWidget):
             self.status_label.setText(self.static_text + "\nWaiting for buffer...")
             return
 
-        metric0 = normalized_corr_metric(rx0, self.template)
-        metric1 = normalized_corr_metric(rx1, self.template)
-        metric0_max = float(np.max(metric0)) if len(metric0) else 0.0
-        metric1_max = float(np.max(metric1)) if len(metric1) else 0.0
-        if metric1_max > metric0_max:
-            metric = metric1
-            sync_channel = "RX1"
-        else:
-            metric = metric0
-            sync_channel = "RX0"
-        distance = int(round(self.min_frame_ratio * self.cfg.frame_len))
-        peaks = self._find_peaks(metric, self.threshold, distance)
         if "ht_ltf_offsets" in self.meta:
             required_len = max(int(x) for x in self.meta["ht_ltf_offsets"]) + self.cfg.sym_len
         elif "tx1_pilot_offsets" in self.meta:
             required_len = max(int(x) for x in self.meta["tx1_pilot_offsets"]) + self.cfg.sym_len
         else:
             required_len = int(self.meta.get("tx1_pilot_offset", 3 * self.cfg.sym_len)) + self.cfg.sym_len
-        peaks = peaks[peaks + required_len <= len(rx0)]
-        corr_max = float(np.max(metric)) if len(metric) else 0.0
-        corr_mean = float(np.mean(metric)) if len(metric) else 0.0
+        try:
+            starts, sync_info = find_frame_starts(
+                rx0,
+                rx1,
+                self.template,
+                self.cfg,
+                self.meta,
+                required_len,
+                self.threshold,
+                self.min_frame_ratio,
+                "stf_delay",
+                "fixed_grid",
+                320,
+                24,
+                128,
+                None,
+            )
+        except RuntimeError:
+            starts = np.empty(0, dtype=np.int64)
+            sync_info = {
+                "sync_metric_max_rx0": 0.0,
+                "sync_metric_max_rx1": 0.0,
+                "sync_channel": "N/A",
+                "detected_peak_count": 0,
+            }
+        metric0_max = float(sync_info.get("sync_metric_max_rx0", 0.0))
+        metric1_max = float(sync_info.get("sync_metric_max_rx1", 0.0))
+        sync_channel = str(sync_info.get("sync_channel", "N/A")).upper()
+        grid_base = sync_info.get("fixed_grid_base_sample")
+        ltf_match_median = float(sync_info.get("ltf_match_median", 0.0))
 
         frames = []
         cfo_hz = []
-        for start in peaks[-self.max_frames_display :]:
+        for start in starts[-self.max_frames_display :]:
             try:
                 h0, w0 = extract_one_frame(rx0, int(start), self.cfg, self.reference_freq, self.meta)
                 h1, w1 = extract_one_frame(rx1, int(start), self.cfg, self.reference_freq, self.meta)
@@ -463,7 +513,7 @@ class CsiMonitorWindow(Qt.QWidget):
         rx0_db = 10.0 * np.log10(float(np.mean(np.abs(rx0) ** 2)) + 1e-20)
         rx1_db = 10.0 * np.log10(float(np.mean(np.abs(rx1) ** 2)) + 1e-20)
         expected = len(rx0) / self.cfg.frame_len
-        detected_rate = len(peaks) / max(len(rx0) / self.sample_rate, 1e-9)
+        detected_rate = len(starts) / max(len(rx0) / self.sample_rate, 1e-9)
 
         h_db = None
         if frames:
@@ -480,8 +530,8 @@ class CsiMonitorWindow(Qt.QWidget):
                 widget.set_matrix(None)
             cfo_text = "CFO mean RX0/RX1=N/A"
 
-        rx0_quality = self._ht_quality(rx0, peaks)
-        rx1_quality = self._ht_quality(rx1, peaks)
+        rx0_quality = self._ht_quality(rx0, starts)
+        rx1_quality = self._ht_quality(rx1, starts)
         self._update_quality_table(rx0_quality, rx1_quality, h_db, len(frames))
 
         self.status_label.setText(
@@ -489,8 +539,8 @@ class CsiMonitorWindow(Qt.QWidget):
             + "\n"
             + f"RX power RX0/RX1={rx0_db:.1f}/{rx1_db:.1f} dBFS, "
             + f"corr max RX0/RX1={metric0_max:.3f}/{metric1_max:.3f}, "
-            + f"sync={sync_channel}, corr mean={corr_mean:.3f}, "
-            + f"threshold={self.threshold:.2f}, frames={len(peaks)}/{expected:.1f}, "
+            + f"sync={sync_channel}, grid_base={grid_base}, L-LTF med={ltf_match_median:.3f}, "
+            + f"threshold={self.threshold:.2f}, frames={len(starts)}/{expected:.1f}, "
             + f"detected rate={detected_rate:.1f} Hz, extracted={len(frames)}, {cfo_text}"
         )
 
