@@ -52,8 +52,18 @@ def extract_one_frame(
         y1, y2 = y_symbols
         bins = np.array([int(k) % nfft for k in cfg.active_carriers], dtype=np.int32)
         x = reference_freq[bins]
-        h_tx0 = (y1[bins] + y2[bins]) / (2.0 * x + 1e-12)
-        h_tx1 = (y1[bins] - y2[bins]) / (2.0 * x + 1e-12)
+        tx_chain_mode = str(getattr(cfg, "tx_chain_mode", "both"))
+        if tx_chain_mode == "both":
+            h_tx0 = (y1[bins] + y2[bins]) / (2.0 * x + 1e-12)
+            h_tx1 = (y1[bins] - y2[bins]) / (2.0 * x + 1e-12)
+        elif tx_chain_mode == "tx0_only":
+            h_tx0 = (y1[bins] + y2[bins]) / (2.0 * x + 1e-12)
+            h_tx1 = np.zeros_like(h_tx0)
+        elif tx_chain_mode == "tx1_only":
+            h_tx0 = np.zeros_like(y1[bins])
+            h_tx1 = (y1[bins] - y2[bins]) / (2.0 * x + 1e-12)
+        else:
+            raise ValueError(f"Unsupported tx_chain_mode: {tx_chain_mode}")
         return np.stack([h_tx0, h_tx1], axis=0).astype(np.complex64), omega
 
     if "ltf1_offset" in meta and "ltf2_offset" in meta:
@@ -116,6 +126,8 @@ def main():
                       probe_rate_hz=float(meta0["probe_rate_hz"]), tx_scale=float(meta0["tx_scale"]),
                       pilot_repeats_per_tx=int(meta0.get("pilot_repeats_per_tx", 1)),
                       frame_format=str(meta0.get("frame_format", "wifi_like_stf_ltf_tdm_mimo")),
+                      sync_tx_mode=str(meta0.get("sync_tx_mode", "both")),
+                      tx_chain_mode=str(meta0.get("tx_chain_mode", "both")),
                       seed=int(meta0["seed"]))
     tx0, _, meta = make_waveforms(cfg)
     template = tx0[: int(meta["sync_training_len"])]

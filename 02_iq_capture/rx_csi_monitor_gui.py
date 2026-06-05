@@ -27,6 +27,14 @@ from common.frame_design import CFG, ProbeConfig, make_waveforms, runtime_defaul
 from extract_csi import extract_one_frame, normalized_corr_metric
 
 
+def db10(value: float) -> float:
+    return float(10.0 * np.log10(value + 1e-20))
+
+
+def db20_abs(values: np.ndarray) -> float:
+    return float(20.0 * np.log10(float(np.mean(np.abs(values))) + 1e-12))
+
+
 class DualChannelRingSink(gr.sync_block):
     def __init__(self, max_samples: int):
         super().__init__(
@@ -163,10 +171,11 @@ class CsiMonitorWindow(Qt.QWidget):
         pilot_repeats_per_tx: int,
         frame_format: str,
         sync_tx_mode: str,
+        tx_chain_mode: str,
     ):
         super().__init__()
         self.setWindowTitle("USRP B210 realtime CSI monitor")
-        self.resize(1100, 760)
+        self.resize(1250, 900)
 
         self.center_freq = center_freq
         self.sample_rate = sample_rate
@@ -183,10 +192,15 @@ class CsiMonitorWindow(Qt.QWidget):
             pilot_repeats_per_tx=pilot_repeats_per_tx,
             frame_format=frame_format,
             sync_tx_mode=sync_tx_mode,
+            tx_chain_mode=tx_chain_mode,
             seed=CFG.seed,
         )
-        self.tx0, _, self.meta = make_waveforms(self.cfg)
+        self.tx0, self.tx1, self.meta = make_waveforms(self.cfg)
+        self.template_source = "tx0"
         self.template = self.tx0[: int(self.meta.get("sync_training_len", 2 * self.cfg.sym_len))]
+        if float(np.sum(np.abs(self.template) ** 2)) <= 1e-12:
+            self.template_source = "tx1"
+            self.template = self.tx1[: int(self.meta.get("sync_training_len", 2 * self.cfg.sym_len))]
         if "training_freq_real" in self.meta and "ht_ltf_offsets" in self.meta:
             self.reference_freq = (
                 np.array(self.meta["training_freq_real"], dtype=np.float32)
@@ -223,6 +237,16 @@ class CsiMonitorWindow(Qt.QWidget):
         controls.addWidget(self.threshold_slider)
         self.threshold_value = Qt.QLabel()
         controls.addWidget(self.threshold_value)
+
+        self.quality_table = Qt.QTableWidget(6, 5)
+        self.quality_table.setHorizontalHeaderLabels(
+            ["Metric", "RX0", "RX1", "Target", "Status"]
+        )
+        self.quality_table.verticalHeader().setVisible(False)
+        self.quality_table.setEditTriggers(Qt.QAbstractItemView.NoEditTriggers)
+        self.quality_table.setMinimumHeight(170)
+        self.quality_table.setMaximumHeight(190)
+        layout.addWidget(self.quality_table)
 
         self.heatmaps = [
             HeatmapWidget("|H| RX0<-TX0"),
@@ -265,6 +289,7 @@ class CsiMonitorWindow(Qt.QWidget):
             f"OFDM FFT={self.cfg.fft_len}, active carriers={len(self.cfg.active_carriers)}, "
             f"frame_format={self.cfg.frame_format}, "
             f"sync_tx_mode={self.cfg.sync_tx_mode}, "
+            f"tx_chain_mode={self.cfg.tx_chain_mode}, template={self.template_source}, "
             f"probe_rate={self.cfg.probe_rate_hz:.1f} Hz, tx_scale={self.cfg.tx_scale:.2f}, "
             f"pilot_repeats_per_tx={self.cfg.pilot_repeats_per_tx}, "
             f"spacing={self.cfg.subcarrier_spacing_hz / 1e3:.3f} kHz, "
@@ -272,6 +297,129 @@ class CsiMonitorWindow(Qt.QWidget):
             f"{(self.center_freq + high_hz) / 1e6:.6f} MHz"
         )
         self.threshold_value.setText(f"{self.threshold:.2f}")
+
+    def _frame_region_power(self, rx: np.ndarray, starts: np.ndarray, offset: int, length: int) -> float:
+        values = []
+        for start in starts:
+            begin = int(start) + offset
+            end = begin + length
+            if begin >= 0 and end <= len(rx):
+                seg = rx[begin:end]
+                values.append(float(np.mean(np.abs(seg) ** 2)))
+        return float(np.mean(values)) if values else 0.0
+
+    def _ht_quality(self, rx: np.ndarray, starts: np.ndarray) -> dict[str, float]:
+        if "ht_ltf_offsets" not in self.meta or len(starts) == 0:
+            return {"ht1_snr_db": 0.0, "ht2_snr_db": 0.0, "guard_dbfs": 0.0}
+        starts = starts[-min(len(starts), self.max_frames_display) :]
+        ht1_offset = int(self.meta["ht_ltf1_offset"])
+        ht2_offset = int(self.meta["ht_ltf2_offset"])
+        guard_offset = int(self.meta["occupied_len"])
+        guard_len = max(1, min(400, self.cfg.frame_len - guard_offset))
+        ht1 = self._frame_region_power(rx, starts, ht1_offset, self.cfg.sym_len)
+        ht2 = self._frame_region_power(rx, starts, ht2_offset, self.cfg.sym_len)
+        guard = self._frame_region_power(rx, starts, guard_offset, guard_len)
+        return {
+            "ht1_snr_db": db10(ht1 / (guard + 1e-20)),
+            "ht2_snr_db": db10(ht2 / (guard + 1e-20)),
+            "guard_dbfs": db10(guard),
+        }
+
+    def _set_quality_row(
+        self,
+        row: int,
+        metric: str,
+        rx0_text: str,
+        rx1_text: str,
+        target: str,
+        ok: bool,
+    ) -> None:
+        values = [metric, rx0_text, rx1_text, target, "OK" if ok else "CHECK"]
+        for col, value in enumerate(values):
+            item = Qt.QTableWidgetItem(value)
+            if col == 4:
+                color = QtGui.QColor(215, 245, 220) if ok else QtGui.QColor(255, 228, 190)
+                item.setBackground(color)
+            self.quality_table.setItem(row, col, item)
+
+    def _update_quality_table(
+        self,
+        rx0_quality: dict[str, float],
+        rx1_quality: dict[str, float],
+        h_db: np.ndarray | None,
+        frame_count: int,
+    ) -> None:
+        ht1_ok = min(rx0_quality["ht1_snr_db"], rx1_quality["ht1_snr_db"]) >= 6.0
+        ht2_ok = min(rx0_quality["ht2_snr_db"], rx1_quality["ht2_snr_db"]) >= 6.0
+        self._set_quality_row(
+            0,
+            "HT1 SNR",
+            f"{rx0_quality['ht1_snr_db']:.1f} dB",
+            f"{rx1_quality['ht1_snr_db']:.1f} dB",
+            "> 6 dB",
+            ht1_ok,
+        )
+        self._set_quality_row(
+            1,
+            "HT2 SNR",
+            f"{rx0_quality['ht2_snr_db']:.1f} dB",
+            f"{rx1_quality['ht2_snr_db']:.1f} dB",
+            "> 6 dB",
+            ht2_ok,
+        )
+        self._set_quality_row(
+            2,
+            "Guard power",
+            f"{rx0_quality['guard_dbfs']:.1f} dBFS",
+            f"{rx1_quality['guard_dbfs']:.1f} dBFS",
+            "lower is better",
+            True,
+        )
+
+        path_names = ["RX0<-TX0", "RX0<-TX1", "RX1<-TX0", "RX1<-TX1"]
+        if h_db is None:
+            path_values = ["N/A"] * 4
+            path_ok = False
+        else:
+            means = [
+                float(np.mean(h_db[:, 0, 0, :])),
+                float(np.mean(h_db[:, 0, 1, :])),
+                float(np.mean(h_db[:, 1, 0, :])),
+                float(np.mean(h_db[:, 1, 1, :])),
+            ]
+            path_values = [f"{name}: {value:.1f} dB" for name, value in zip(path_names, means)]
+            active_indices = [0, 1, 2, 3]
+            if self.cfg.tx_chain_mode == "tx0_only":
+                active_indices = [0, 2]
+            elif self.cfg.tx_chain_mode == "tx1_only":
+                active_indices = [1, 3]
+            path_ok = all(means[index] > -80.0 for index in active_indices)
+
+        self._set_quality_row(
+            3,
+            "|H| TX0",
+            path_values[0],
+            path_values[2],
+            "active > -80 dB",
+            path_ok if self.cfg.tx_chain_mode != "tx1_only" else True,
+        )
+        self._set_quality_row(
+            4,
+            "|H| TX1",
+            path_values[1],
+            path_values[3],
+            "active > -80 dB",
+            path_ok if self.cfg.tx_chain_mode != "tx0_only" else True,
+        )
+        ready = frame_count > 0 and ht1_ok and ht2_ok and path_ok
+        self._set_quality_row(
+            5,
+            "Capture gate",
+            f"frames={frame_count}",
+            "",
+            "OK before saving IQ",
+            ready,
+        )
 
     def _update_analysis(self) -> None:
         rx0, rx1 = self.tb.ring.snapshot()
@@ -317,6 +465,7 @@ class CsiMonitorWindow(Qt.QWidget):
         expected = len(rx0) / self.cfg.frame_len
         detected_rate = len(peaks) / max(len(rx0) / self.sample_rate, 1e-9)
 
+        h_db = None
         if frames:
             h = np.stack(frames, axis=0).astype(np.complex64)
             h_db = 20.0 * np.log10(np.abs(h) + 1e-12)
@@ -330,6 +479,10 @@ class CsiMonitorWindow(Qt.QWidget):
             for widget in self.heatmaps:
                 widget.set_matrix(None)
             cfo_text = "CFO mean RX0/RX1=N/A"
+
+        rx0_quality = self._ht_quality(rx0, peaks)
+        rx1_quality = self._ht_quality(rx1, peaks)
+        self._update_quality_table(rx0_quality, rx1_quality, h_db, len(frames))
 
         self.status_label.setText(
             self.static_text
@@ -384,6 +537,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--frame-format", default=str(defaults.get("frame_format", tx_defaults["frame_format"])))
     parser.add_argument("--sync-tx-mode", choices=["both", "tx0_only"], default=str(defaults.get("sync_tx_mode", tx_defaults["sync_tx_mode"])))
+    parser.add_argument("--tx-chain-mode", choices=["both", "tx0_only", "tx1_only"], default=str(defaults.get("tx_chain_mode", tx_defaults["tx_chain_mode"])))
     return parser.parse_args()
 
 
@@ -406,6 +560,7 @@ def main() -> None:
         pilot_repeats_per_tx=args.pilot_repeats_per_tx,
         frame_format=args.frame_format,
         sync_tx_mode=args.sync_tx_mode,
+        tx_chain_mode=args.tx_chain_mode,
     )
     window.start()
     window.show()

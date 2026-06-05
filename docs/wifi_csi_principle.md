@@ -93,15 +93,23 @@ raw IQ
 
 ```text
 frame detection: 使用 STF 的 16-sample 延迟自相关做粗检测
-timing refinement: 使用 L-LTF matched correlation 做精细定时
+frame grid: 使用 L-LTF 质量选择一个全局固定 frame grid
+timing refinement: 每个 grid frame 内使用 L-LTF 重复符号做小范围精细定时
 CFO estimation: 使用两个连续 LTF 的相位差估计 CFO
 CFO correction: 对 frame 内样本做复指数相位补偿
 HT-LTF extraction: 对两个 HT-LTF 符号去 CP 后 FFT
 MIMO decoding: 使用 (Y1+Y2)/(2X) 和 (Y1-Y2)/(2X)
+frame drop: L-LTF 质量低于门限的 frame 不输出 CSI
 ```
 
 旧的完整同步模板相关仍可作为 debug 对比，但不应作为主 packet
 detection 方法。标准 WiFi 风格的 STF 延迟自相关对多径和信道响应更稳健。
+
+STF 自相关通常会产生 plateau，而不是唯一尖峰。因此不能把每个 frame
+的 STF peak 直接当作最终 frame start。当前默认流程先从检测峰估计全局
+frame grid，然后按 `frame_len` 固定推进；每个 frame 内再允许小范围 timing
+delta 和 CFO/CPE 相位校正。这样允许 packet 丢失和 packet 间公共相位跳变，
+但不会允许 FFT 窗口在 STF plateau 上逐帧随机漂移。
 
 ## 5. CSI Sanitization 的位置
 

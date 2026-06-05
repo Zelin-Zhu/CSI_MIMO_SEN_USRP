@@ -68,12 +68,75 @@ Capture raw IQ:
 bash 02_iq_capture/capture_raw_iq.sh
 ```
 
+Single-TX isolation test:
+
+```bash
+# Terminal 1: transmit only from TX0, keep TX1 silent.
+bash 02_iq_capture/start_tx0_only.sh
+
+# Terminal 2: monitor RX power/SNR first. Save IQ only if the quality table is OK.
+bash 02_iq_capture/start_rx_monitor_tx0_only.sh
+
+# Terminal 3: save 2-RX raw IQ with matching metadata.
+bash 02_iq_capture/capture_tx0_only_iq.sh
+
+# Terminal 1: stop TX0, then transmit only from TX1.
+bash 02_iq_capture/start_tx1_only.sh
+
+# Terminal 2: monitor RX power/SNR first. Save IQ only if the quality table is OK.
+bash 02_iq_capture/start_rx_monitor_tx1_only.sh
+
+# Terminal 3: save 2-RX raw IQ with matching metadata.
+bash 02_iq_capture/capture_tx1_only_iq.sh
+```
+
+In the monitor UI, use the quality table as the pre-capture gate:
+
+```text
+HT1 SNR and HT2 SNR should both be clearly above guard, preferably > 6 dB.
+The active |H| TX row should not sit at the noise floor.
+Capture gate should show OK before saving raw IQ.
+```
+
+The default single-TX output directories are:
+
+```text
+data/captures/single_tx_tx0
+data/captures/single_tx_tx1
+```
+
 Extract CSI offline:
 
 ```bash
 python3 03_csi_extraction/extract_csi_wifi_like.py \
   --capture-dir data/captures/raw_iq_001 \
   --out-dir results/raw_iq_001/wifi_like_debug
+```
+
+For single-TX captures, use matching output names:
+
+```bash
+python3 03_csi_extraction/extract_csi_wifi_like.py \
+  --capture-dir data/captures/single_tx_tx0 \
+  --out-dir results/single_tx_tx0/wifi_like_debug
+
+python3 03_csi_extraction/extract_csi_wifi_like.py \
+  --capture-dir data/captures/single_tx_tx1 \
+  --out-dir results/single_tx_tx1/wifi_like_debug
+```
+
+Check single-TX quality:
+
+```bash
+python3 03_csi_extraction/inspect_single_tx_quality.py \
+  --capture-dir data/captures/single_tx_tx0 \
+  --h-file results/single_tx_tx0/wifi_like_debug/H_wifi_ht_ltf_raw.npy \
+  --summary-file results/single_tx_tx0/wifi_like_debug/wifi_ht_ltf_extraction_summary.json
+
+python3 03_csi_extraction/inspect_single_tx_quality.py \
+  --capture-dir data/captures/single_tx_tx1 \
+  --h-file results/single_tx_tx1/wifi_like_debug/H_wifi_ht_ltf_raw.npy \
+  --summary-file results/single_tx_tx1/wifi_like_debug/wifi_ht_ltf_extraction_summary.json
 ```
 
 Run basic CSI analysis:
@@ -107,6 +170,8 @@ IQ and provides an offline WiFi-like CSI extraction pipeline with diagnostics fo
 
 ```text
 frame detection
+fixed frame-grid recovery
+low-quality frame dropping
 LTF timing search
 CFO estimation
 2x2 HT-LTF orthogonal channel decoding

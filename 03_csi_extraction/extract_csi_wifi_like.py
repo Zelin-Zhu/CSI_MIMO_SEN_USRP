@@ -79,6 +79,108 @@ def ltf_matched_timing_delta(
     return best_delta, best_metric
 
 
+def build_fixed_frame_grid(
+    base_start: int,
+    total_len: int,
+    required_len: int,
+    frame_len: int,
+    max_frames: int | None,
+) -> np.ndarray:
+    if base_start < 0:
+        base_start = int(base_start % frame_len)
+    starts = np.arange(base_start, total_len - required_len + 1, frame_len, dtype=np.int64)
+    if max_frames is not None:
+        starts = starts[:max_frames]
+    return starts
+
+
+def interval_summary(starts: np.ndarray) -> dict[str, float | int | None]:
+    if len(starts) < 2:
+        return {
+            "count": int(len(starts)),
+            "mean": None,
+            "std": None,
+            "min": None,
+            "max": None,
+        }
+    diff = np.diff(starts)
+    return {
+        "count": int(len(starts)),
+        "mean": float(np.mean(diff)),
+        "std": float(np.std(diff)),
+        "min": int(np.min(diff)),
+        "max": int(np.max(diff)),
+    }
+
+
+def candidate_grid_bases(
+    peaks: np.ndarray,
+    refined: list[int],
+    frame_len: int,
+    candidate_count: int = 12,
+) -> list[int]:
+    residues = []
+    if len(peaks):
+        residues.extend((np.asarray(peaks, dtype=np.int64) % frame_len).tolist())
+    if refined:
+        residues.extend((np.asarray(refined, dtype=np.int64) % frame_len).tolist())
+    if not residues:
+        return []
+    counts = np.bincount(np.asarray(residues, dtype=np.int64), minlength=frame_len)
+    top = np.argsort(counts)[-candidate_count:][::-1]
+    candidates: list[int] = []
+    for base in top:
+        # Search a small neighborhood because STF autocorrelation often returns
+        # a plateau, not a single sharp packet boundary.
+        for delta in (0, -32, -16, -8, 8, 16, 32):
+            candidate = int((int(base) + delta) % frame_len)
+            if candidate not in candidates:
+                candidates.append(candidate)
+    return candidates
+
+
+def score_fixed_grid_base(
+    sig: np.ndarray,
+    base: int,
+    cfg: ProbeConfig,
+    meta: dict,
+    required_len: int,
+    timing_search: int,
+    score_frames: int,
+) -> tuple[float, int]:
+    starts = build_fixed_frame_grid(base, len(sig), required_len, cfg.frame_len, score_frames)
+    if len(starts) == 0:
+        return -1.0, 0
+    metrics = []
+    for start in starts:
+        _, metric = ltf_timing_delta(sig, int(start), meta, cfg.fft_len, timing_search)
+        metrics.append(metric)
+    return float(np.median(metrics)), int(len(metrics))
+
+
+def select_fixed_grid_base(
+    sig: np.ndarray,
+    peaks: np.ndarray,
+    refined: list[int],
+    cfg: ProbeConfig,
+    meta: dict,
+    required_len: int,
+    timing_search: int,
+    score_frames: int,
+) -> tuple[int, list[dict[str, float | int]]]:
+    candidates = candidate_grid_bases(peaks, refined, cfg.frame_len)
+    if not candidates:
+        raise RuntimeError("No grid base candidates found.")
+    scores = []
+    for base in candidates:
+        score, count = score_fixed_grid_base(
+            sig, base, cfg, meta, required_len, timing_search, score_frames
+        )
+        scores.append({"base": int(base), "score": float(score), "score_frames": int(count)})
+    scores.sort(key=lambda item: item["score"], reverse=True)
+    return int(scores[0]["base"]), scores
+
+
 def load_capture(capture_dir: Path):
     rx0 = np.fromfile(capture_dir / "rx0.fc32", dtype=np.complex64)
     rx1 = np.fromfile(capture_dir / "rx1.fc32", dtype=np.complex64)
@@ -96,6 +198,7 @@ def load_capture(capture_dir: Path):
         pilot_repeats_per_tx=int(meta0.get("pilot_repeats_per_tx", 1)),
         frame_format=str(meta0.get("frame_format", "wifi_like_stf_ltf_tdm_mimo")),
         sync_tx_mode=str(meta0.get("sync_tx_mode", "both")),
+        tx_chain_mode=str(meta0.get("tx_chain_mode", "both")),
         seed=int(meta0["seed"]),
     )
     _, _, meta = make_waveforms(cfg)
@@ -112,7 +215,10 @@ def find_frame_starts(
     threshold: float,
     min_frame_ratio: float,
     detection_mode: str,
+    frame_start_mode: str,
     ltf_search: int,
+    timing_search: int,
+    grid_score_frames: int,
     max_frames: int | None,
 ):
     if detection_mode == "template":
@@ -156,17 +262,48 @@ def find_frame_starts(
 
     if not refined:
         raise RuntimeError("No refined frame starts found. Increase --ltf-search or check RX/TX.")
-    starts = np.asarray(refined, dtype=np.int64)
-    if max_frames is not None:
-        starts = starts[:max_frames]
+
+    free_starts = np.asarray(refined, dtype=np.int64)
+    grid_scores: list[dict[str, float | int]] = []
+    grid_base = None
+    if frame_start_mode == "free_peaks":
+        starts = free_starts
+        if max_frames is not None:
+            starts = starts[:max_frames]
+    elif frame_start_mode == "fixed_grid":
+        grid_base, grid_scores = select_fixed_grid_base(
+            sig,
+            peaks,
+            refined,
+            cfg,
+            meta,
+            required_len,
+            timing_search,
+            grid_score_frames,
+        )
+        starts = build_fixed_frame_grid(
+            grid_base,
+            min(len(rx0), len(rx1)),
+            required_len,
+            cfg.frame_len,
+            max_frames,
+        )
+    else:
+        raise ValueError(f"Unsupported frame start mode: {frame_start_mode}")
+
     return starts.astype(np.int64), {
         "sync_channel": sync_channel,
         "detection_mode": detection_mode,
+        "frame_start_mode": frame_start_mode,
         "sync_metric_max_rx0": float(np.max(metric0)),
         "sync_metric_max_rx1": float(np.max(metric1)),
         "first_peak": int(peaks[0]),
         "detected_peak_count": int(len(peaks)),
         "refined_start_count": int(len(refined)),
+        "free_peak_interval_samples": interval_summary(free_starts),
+        "fixed_grid_base_sample": int(grid_base) if grid_base is not None else None,
+        "fixed_grid_interval_samples": interval_summary(starts),
+        "grid_candidate_scores": grid_scores[:8],
         "ltf_match_mean": float(np.mean(ltf_match)) if ltf_match else 0.0,
         "ltf_match_median": float(np.median(ltf_match)) if ltf_match else 0.0,
     }
@@ -280,8 +417,17 @@ def extract_frame_ht_ltf(
         y_symbols.append(np.fft.fft(symbol))
     y1, y2 = y_symbols
     x = training_freq[bins]
-    h_tx0 = (y1[bins] + y2[bins]) / (2.0 * x + 1e-12)
-    h_tx1 = (y1[bins] - y2[bins]) / (2.0 * x + 1e-12)
+    if cfg.tx_chain_mode == "both":
+        h_tx0 = (y1[bins] + y2[bins]) / (2.0 * x + 1e-12)
+        h_tx1 = (y1[bins] - y2[bins]) / (2.0 * x + 1e-12)
+    elif cfg.tx_chain_mode == "tx0_only":
+        h_tx0 = (y1[bins] + y2[bins]) / (2.0 * x + 1e-12)
+        h_tx1 = np.zeros_like(h_tx0)
+    elif cfg.tx_chain_mode == "tx1_only":
+        h_tx0 = np.zeros_like(y1[bins])
+        h_tx1 = (y1[bins] - y2[bins]) / (2.0 * x + 1e-12)
+    else:
+        raise ValueError(f"Unsupported tx_chain_mode: {cfg.tx_chain_mode}")
     h = np.stack([h_tx0, h_tx1], axis=0).astype(np.complex64)
     return h, cfo, delta, ltf_metric
 
@@ -368,10 +514,28 @@ def parse_args() -> argparse.Namespace:
         help="Frame coarse detection mode. stf_delay is closer to WiFi packet detection.",
     )
     parser.add_argument(
+        "--frame-start-mode",
+        choices=["fixed_grid", "free_peaks"],
+        default=str(defaults["frame_start_mode"]),
+        help="fixed_grid uses one packet timing grid after detection; free_peaks keeps the old per-frame peak starts.",
+    )
+    parser.add_argument(
         "--ltf-search",
         type=int,
         default=int(defaults["ltf_search"]),
         help="Search radius for L-LTF matched fine timing after coarse detection.",
+    )
+    parser.add_argument(
+        "--grid-score-frames",
+        type=int,
+        default=int(defaults["grid_score_frames"]),
+        help="Number of frames used to score candidate fixed-grid starts.",
+    )
+    parser.add_argument(
+        "--ltf-quality-threshold",
+        type=float,
+        default=float(defaults["ltf_quality_threshold"]),
+        help="Drop frames whose minimum RX L-LTF repeat metric is below this value.",
     )
     parser.add_argument("--timing-search", type=int, default=int(defaults["timing_search"]))
     parser.add_argument("--max-frames", type=int)
@@ -385,7 +549,20 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     rx0, rx1, capture_cfg, meta, cfg = load_capture(capture_dir)
-    template, _, _ = make_waveforms(cfg)
+    template_cfg = ProbeConfig(
+        sample_rate=cfg.sample_rate,
+        center_freq=cfg.center_freq,
+        fft_len=cfg.fft_len,
+        cp_len=cfg.cp_len,
+        probe_rate_hz=cfg.probe_rate_hz,
+        tx_scale=cfg.tx_scale,
+        pilot_repeats_per_tx=cfg.pilot_repeats_per_tx,
+        frame_format=cfg.frame_format,
+        sync_tx_mode=cfg.sync_tx_mode,
+        tx_chain_mode="both",
+        seed=cfg.seed,
+    )
+    template, _, _ = make_waveforms(template_cfg)
     template = template[: int(meta["sync_training_len"])]
     if "ht_ltf_offsets" in meta:
         required_len = max(int(x) for x in meta["ht_ltf_offsets"]) + cfg.sym_len
@@ -401,7 +578,10 @@ def main() -> None:
         args.threshold,
         args.min_frame_ratio,
         args.detection_mode,
+        args.frame_start_mode,
         args.ltf_search,
+        args.timing_search,
+        args.grid_score_frames,
         args.max_frames,
     )
 
@@ -415,6 +595,8 @@ def main() -> None:
         timing_delta = []
         ltf_metric = []
         kept_starts = []
+        dropped_frames = []
+        candidate_starts = starts.astype(np.int64).tolist()
         for start in starts:
             try:
                 rx_frames = []
@@ -430,6 +612,21 @@ def main() -> None:
                     rx_delta.append(delta)
                     rx_ltf.append(ltf_one)
             except ValueError:
+                dropped_frames.append(
+                    {
+                        "start_sample": int(start),
+                        "reason": "truncated_or_invalid_frame",
+                    }
+                )
+                continue
+            if min(rx_ltf) < args.ltf_quality_threshold:
+                dropped_frames.append(
+                    {
+                        "start_sample": int(start),
+                        "reason": "low_ltf_quality",
+                        "ltf_metric_per_rx": [float(x) for x in rx_ltf],
+                    }
+                )
                 continue
             frames.append(np.stack(rx_frames, axis=0))
             cfo.append(rx_cfo)
@@ -453,6 +650,7 @@ def main() -> None:
             "capture_dir": str(capture_dir),
             "out_dir": str(out_dir),
             "frame_format": str(meta["frame_format"]),
+            "tx_chain_mode": str(meta.get("tx_chain_mode", "both")),
             "H_shape": list(h_raw.shape),
             "layout": "[frame, rx, tx, active_carrier]",
             "active_carriers": cfg.active_carriers.tolist(),
@@ -460,9 +658,17 @@ def main() -> None:
             "probe_rate_hz": float(meta["probe_rate_hz"]),
             "frame_len": int(meta["frame_len"]),
             "sync": sync_info,
+            "candidate_frame_count": int(len(candidate_starts)),
+            "kept_frame_count": int(len(kept_starts)),
+            "dropped_frame_count": int(len(dropped_frames)),
+            "dropped_frames_preview": dropped_frames[:20],
+            "candidate_frame_starts_samples": candidate_starts,
             "frame_starts_samples": kept_starts,
             "detection_mode": args.detection_mode,
+            "frame_start_mode": args.frame_start_mode,
             "ltf_search_samples": int(args.ltf_search),
+            "grid_score_frames": int(args.grid_score_frames),
+            "ltf_quality_threshold": float(args.ltf_quality_threshold),
             "timing_search_samples": int(args.timing_search),
             "timing_delta_mean_per_rx": np.mean(timing_delta, axis=0).tolist(),
             "timing_delta_std_per_rx": np.std(timing_delta, axis=0).tolist(),
@@ -480,7 +686,16 @@ def main() -> None:
         (out_dir / "wifi_ht_ltf_extraction_summary.json").write_text(
             json.dumps(summary, indent=2), encoding="utf-8"
         )
-        print(json.dumps({k: v for k, v in summary.items() if k != "frame_starts_samples"}, indent=2))
+        print(
+            json.dumps(
+                {
+                    k: v
+                    for k, v in summary.items()
+                    if k not in {"frame_starts_samples", "candidate_frame_starts_samples"}
+                },
+                indent=2,
+            )
+        )
         return
 
     pilot_freq = (
@@ -493,6 +708,8 @@ def main() -> None:
     timing_delta = []
     ltf_metric = []
     kept_starts = []
+    dropped_frames = []
+    candidate_starts = starts.astype(np.int64).tolist()
     for start in starts:
         try:
             rx_frames = []
@@ -508,6 +725,21 @@ def main() -> None:
                 rx_delta.append(delta)
                 rx_ltf.append(ltf_one)
         except ValueError:
+            dropped_frames.append(
+                {
+                    "start_sample": int(start),
+                    "reason": "truncated_or_invalid_frame",
+                }
+            )
+            continue
+        if min(rx_ltf) < args.ltf_quality_threshold:
+            dropped_frames.append(
+                {
+                    "start_sample": int(start),
+                    "reason": "low_ltf_quality",
+                    "ltf_metric_per_rx": [float(x) for x in rx_ltf],
+                }
+            )
             continue
         # hrep per RX is [tx, repeat, carrier]. Store [rx, tx, repeat, carrier].
         frames.append(np.stack(rx_frames, axis=0))
@@ -535,6 +767,7 @@ def main() -> None:
         "capture_dir": str(capture_dir),
         "out_dir": str(out_dir),
         "frame_format": str(meta.get("frame_format", "wifi_like_stf_ltf_tdm_mimo")),
+        "tx_chain_mode": str(meta.get("tx_chain_mode", "both")),
         "H_shape": list(h_raw.shape),
         "H_repeat_shape": list(hrep_raw.shape),
         "active_carriers": cfg.active_carriers.tolist(),
@@ -543,9 +776,17 @@ def main() -> None:
         "frame_len": int(meta["frame_len"]),
         "pilot_repeats_per_tx": int(meta["pilot_repeats_per_tx"]),
         "sync": sync_info,
+        "candidate_frame_count": int(len(candidate_starts)),
+        "kept_frame_count": int(len(kept_starts)),
+        "dropped_frame_count": int(len(dropped_frames)),
+        "dropped_frames_preview": dropped_frames[:20],
+        "candidate_frame_starts_samples": candidate_starts,
         "frame_starts_samples": kept_starts,
         "detection_mode": args.detection_mode,
+        "frame_start_mode": args.frame_start_mode,
         "ltf_search_samples": int(args.ltf_search),
+        "grid_score_frames": int(args.grid_score_frames),
+        "ltf_quality_threshold": float(args.ltf_quality_threshold),
         "timing_search_samples": int(args.timing_search),
         "timing_delta_mean_per_rx": np.mean(timing_delta, axis=0).tolist(),
         "timing_delta_std_per_rx": np.std(timing_delta, axis=0).tolist(),
@@ -565,7 +806,16 @@ def main() -> None:
     (out_dir / "wifi_like_extraction_summary.json").write_text(
         json.dumps(summary, indent=2), encoding="utf-8"
     )
-    print(json.dumps({k: v for k, v in summary.items() if k != "frame_starts_samples"}, indent=2))
+    print(
+        json.dumps(
+            {
+                k: v
+                for k, v in summary.items()
+                if k not in {"frame_starts_samples", "candidate_frame_starts_samples"}
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

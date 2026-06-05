@@ -17,7 +17,8 @@
     "tx_scale": 0.7,
     "pilot_repeats_per_tx": 4,
     "frame_format": "wifi_ht20_2x2_ltf_sounding",
-    "sync_tx_mode": "both"
+    "sync_tx_mode": "both",
+    "tx_chain_mode": "both"
   },
   "capture": {
     "seconds": 0.2,
@@ -38,7 +39,10 @@
     "threshold": 0.35,
     "min_frame_ratio": 0.8,
     "detection_mode": "stf_delay",
+    "frame_start_mode": "fixed_grid",
     "ltf_search_samples": 320,
+    "grid_score_frames": 128,
+    "ltf_quality_threshold": 0.25,
     "timing_search_samples": 24,
     "enable_cfo_correction": true,
     "enable_cpe_correction": true,

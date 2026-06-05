@@ -17,6 +17,7 @@ class ProbeConfig:
     pilot_repeats_per_tx: int = 4
     frame_format: str = "wifi_ht20_2x2_ltf_sounding"
     sync_tx_mode: str = "both"
+    tx_chain_mode: str = "both"
     seed: int = 20260602
 
     @property
@@ -81,6 +82,7 @@ DEFAULT_PROJECT_CONFIG: dict[str, dict[str, Any]] = {
         "pilot_repeats_per_tx": CFG.pilot_repeats_per_tx,
         "frame_format": CFG.frame_format,
         "sync_tx_mode": CFG.sync_tx_mode,
+        "tx_chain_mode": CFG.tx_chain_mode,
     },
     "capture": {
         "seconds": 5.0,
@@ -101,7 +103,10 @@ DEFAULT_PROJECT_CONFIG: dict[str, dict[str, Any]] = {
         "threshold": 0.35,
         "min_frame_ratio": 0.80,
         "detection_mode": "stf_delay",
+        "frame_start_mode": "fixed_grid",
         "ltf_search_samples": 320,
+        "grid_score_frames": 128,
+        "ltf_quality_threshold": 0.25,
         "timing_search_samples": 24,
         "enable_cfo_correction": True,
         "enable_cpe_correction": True,
@@ -152,6 +157,7 @@ def runtime_defaults(section: str, path: str | Path = CONFIG_PATH) -> dict[str, 
         "pilot_repeats_per_tx": frame["pilot_repeats_per_tx"],
         "frame_format": frame["frame_format"],
         "sync_tx_mode": frame.get("sync_tx_mode", CFG.sync_tx_mode),
+        "tx_chain_mode": frame.get("tx_chain_mode", CFG.tx_chain_mode),
     }
     if section == "tx":
         return {
@@ -198,7 +204,10 @@ def runtime_defaults(section: str, path: str | Path = CONFIG_PATH) -> dict[str, 
             "threshold": csi["threshold"],
             "min_frame_ratio": csi["min_frame_ratio"],
             "detection_mode": csi.get("detection_mode", "stf_delay"),
+            "frame_start_mode": csi.get("frame_start_mode", "fixed_grid"),
             "ltf_search": csi.get("ltf_search_samples", 320),
+            "grid_score_frames": csi.get("grid_score_frames", 128),
+            "ltf_quality_threshold": csi.get("ltf_quality_threshold", 0.25),
             "timing_search": csi["timing_search_samples"],
         }
     raise KeyError(f"Unknown runtime defaults section: {section}")
@@ -266,6 +275,8 @@ def _scale_waveform_parts(cfg: ProbeConfig, parts: list[np.ndarray]) -> float:
 
 
 def make_legacy_tdm_waveforms(cfg: ProbeConfig = CFG):
+    if cfg.tx_chain_mode not in {"both", "tx0_only", "tx1_only"}:
+        raise ValueError("tx_chain_mode must be 'both', 'tx0_only', or 'tx1_only'")
     if cfg.pilot_repeats_per_tx < 1:
         raise ValueError("pilot_repeats_per_tx must be at least 1")
     training_freq_raw, training_useful_raw = _ltf_useful_raw(cfg)
@@ -304,6 +315,10 @@ def make_legacy_tdm_waveforms(cfg: ProbeConfig = CFG):
     zero_pilots = np.zeros(cfg.pilot_repeats_per_tx * cfg.sym_len, dtype=np.complex64)
     tx0 = np.concatenate([sync_training, tx0_pilots, zero_pilots, guard]).astype(np.complex64)
     tx1 = np.concatenate([sync_training, zero_pilots, tx1_pilots, guard]).astype(np.complex64)
+    if cfg.tx_chain_mode == "tx0_only":
+        tx1 = np.zeros_like(tx1)
+    elif cfg.tx_chain_mode == "tx1_only":
+        tx0 = np.zeros_like(tx0)
     pilot_freq_scaled = (digital_scale * pilot_freq_raw).astype(np.complex64)
     training_freq_scaled = (digital_scale * training_freq_raw).astype(np.complex64)
     stf_len = len(short_training)
@@ -340,6 +355,8 @@ def make_legacy_tdm_waveforms(cfg: ProbeConfig = CFG):
 def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
     if cfg.sync_tx_mode not in {"both", "tx0_only"}:
         raise ValueError("sync_tx_mode must be 'both' or 'tx0_only'")
+    if cfg.tx_chain_mode not in {"both", "tx0_only", "tx1_only"}:
+        raise ValueError("tx_chain_mode must be 'both', 'tx0_only', or 'tx1_only'")
     training_freq_raw, training_useful_raw = _ltf_useful_raw(cfg)
     short_raw = _short_training(cfg)
     digital_scale = _scale_waveform_parts(cfg, [short_raw, training_useful_raw])
@@ -374,6 +391,10 @@ def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
         tx1_sync = np.zeros(len(sync_training), dtype=np.complex64)
     tx0 = np.concatenate([sync_training, ht_ltf1, ht_ltf2, guard]).astype(np.complex64)
     tx1 = np.concatenate([tx1_sync, ht_ltf1, -ht_ltf2, guard]).astype(np.complex64)
+    if cfg.tx_chain_mode == "tx0_only":
+        tx1 = np.zeros_like(tx1)
+    elif cfg.tx_chain_mode == "tx1_only":
+        tx0 = np.zeros_like(tx0)
     training_freq_scaled = (digital_scale * training_freq_raw).astype(np.complex64)
     stf_len = len(short_training)
     ltf_start = stf_len

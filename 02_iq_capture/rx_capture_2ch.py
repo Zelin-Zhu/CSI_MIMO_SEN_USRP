@@ -10,7 +10,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from common.frame_design import CFG, ProbeConfig, save_probe_metadata, runtime_defaults
 
 class DualRxCapture(gr.top_block):
-    def __init__(self, args: str, freq: float, rate: float, gain: float, antenna: str, seconds: float, out_dir: Path, probe_rate: float, tx_scale: float, pilot_repeats_per_tx: int, frame_format: str, sync_tx_mode: str):
+    def __init__(self, args: str, freq: float, rate: float, gain: float, antenna: str, seconds: float, out_dir: Path, probe_rate: float, tx_scale: float, pilot_repeats_per_tx: int, frame_format: str, sync_tx_mode: str, tx_chain_mode: str):
         super().__init__("2xRX raw IQ capture")
         out_dir.mkdir(parents=True, exist_ok=True)
         total_samples = int(round(seconds * rate))
@@ -28,15 +28,17 @@ class DualRxCapture(gr.top_block):
         self.connect((self.usrp, 1), self.head1, self.file1)
         cfg = {"uhd_args": args, "center_freq": freq, "sample_rate": rate, "rx_gain_db": gain,
                "rx_antenna": antenna, "seconds": seconds, "total_samples_per_channel": total_samples,
-               "dtype": "complex64", "frame_format": frame_format, "sync_tx_mode": sync_tx_mode}
+               "dtype": "complex64", "frame_format": frame_format, "sync_tx_mode": sync_tx_mode,
+               "tx_chain_mode": tx_chain_mode}
         (out_dir / "capture_config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
         probe_cfg = ProbeConfig(sample_rate=rate, center_freq=freq, fft_len=CFG.fft_len, cp_len=CFG.cp_len,
                                 probe_rate_hz=probe_rate, tx_scale=tx_scale,
                                 pilot_repeats_per_tx=pilot_repeats_per_tx,
                                 frame_format=frame_format, sync_tx_mode=sync_tx_mode,
+                                tx_chain_mode=tx_chain_mode,
                                 seed=CFG.seed)
         save_probe_metadata(out_dir / "probe_metadata.json", probe_cfg)
-        print(f"RX: {freq/1e6:.6f} MHz, {rate/1e6:.3f} MS/s, gain={gain:.1f} dB, duration={seconds:.1f}s, format={frame_format}, sync_tx_mode={sync_tx_mode}, out={out_dir}")
+        print(f"RX: {freq/1e6:.6f} MHz, {rate/1e6:.3f} MS/s, gain={gain:.1f} dB, duration={seconds:.1f}s, format={frame_format}, sync_tx_mode={sync_tx_mode}, tx_chain_mode={tx_chain_mode}, out={out_dir}")
 
 def parse_args():
     defaults = runtime_defaults("rx_capture")
@@ -53,10 +55,11 @@ def parse_args():
     p.add_argument("--pilot-repeats-per-tx", type=int, default=int(defaults["pilot_repeats_per_tx"]))
     p.add_argument("--frame-format", default=str(defaults["frame_format"]))
     p.add_argument("--sync-tx-mode", choices=["both", "tx0_only"], default=str(defaults["sync_tx_mode"]))
+    p.add_argument("--tx-chain-mode", choices=["both", "tx0_only", "tx1_only"], default=str(defaults["tx_chain_mode"]))
     return p.parse_args()
 
 def main():
-    a = parse_args(); tb = DualRxCapture(a.args, a.freq, a.rate, a.gain, a.antenna, a.seconds, a.out_dir, a.probe_rate, a.tx_scale, a.pilot_repeats_per_tx, a.frame_format, a.sync_tx_mode)
+    a = parse_args(); tb = DualRxCapture(a.args, a.freq, a.rate, a.gain, a.antenna, a.seconds, a.out_dir, a.probe_rate, a.tx_scale, a.pilot_repeats_per_tx, a.frame_format, a.sync_tx_mode, a.tx_chain_mode)
     print("Capturing raw IQ..."); tb.run(); print("Capture complete.")
 
 if __name__ == "__main__": main()
