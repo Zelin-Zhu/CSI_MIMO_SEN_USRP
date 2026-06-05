@@ -1,15 +1,16 @@
 {
   "sample_rate": 20000000.0,
-  "center_freq": 5825000000.0,
+  "center_freq": 1890000000.0,
   "fft_len": 64,
   "cp_len": 16,
-  "probe_rate_hz": 1000.0,
+  "probe_rate_hz": 10000.0,
   "tx_scale": 0.3,
   "pilot_repeats_per_tx": 4,
   "frame_format": "wifi_ht20_2x2_ltf_sounding",
+  "sync_tx_mode": "both",
   "seed": 20260602,
   "sym_len": 80,
-  "frame_len": 20000,
+  "frame_len": 2000,
   "active_carriers": [
     -26,
     -25,
@@ -89,7 +90,7 @@
     400
   ],
   "occupied_len": 480,
-  "guard_len": 19520,
+  "guard_len": 1520,
   "training_freq_real": [
     0.0,
     0.30000001192092896,

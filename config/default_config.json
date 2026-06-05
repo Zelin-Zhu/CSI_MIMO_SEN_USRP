@@ -7,13 +7,13 @@
   "radio": {
     "center_freq": 1890000000.0,
     "sample_rate": 20000000.0,
-    "tx_gain": 30.0,
+    "tx_gain": 40.0,
     "rx_gain": 30.0
   },
   "frame": {
     "fft_len": 64,
     "cp_len": 16,
-    "probe_rate_hz": 1000.0,
+    "probe_rate_hz": 10000.0,
     "tx_scale": 0.3,
     "pilot_repeats_per_tx": 4,
     "frame_format": "wifi_ht20_2x2_ltf_sounding",
@@ -28,7 +28,7 @@
     "fft_size": 2048
   },
   "monitor": {
-    "buffer_seconds": 0.5,
+    "buffer_seconds": 0.1,
     "update_interval_ms": 250,
     "threshold": 0.35,
     "min_frame_ratio": 0.8,
