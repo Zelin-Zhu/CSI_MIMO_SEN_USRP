@@ -51,6 +51,16 @@ This writes `results/tx_waveform_check/tx_waveform_region_summary.json` and a
 region plot. Use it to confirm whether the generated HT-LTF power is actually
 lower than L-LTF before debugging the RF path.
 
+The active subcarrier count is configured in `../config/default_config.json`.
+For low-SNR tests, start with 24 carriers:
+
+```json
+"active_carrier_count": 24
+```
+
+At 20 MS/s with FFT=64, this narrows the active span to about 7.5 MHz while
+keeping the same 312.5 kHz subcarrier spacing.
+
 Each capture directory should contain:
 
 ```text

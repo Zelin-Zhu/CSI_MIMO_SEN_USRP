@@ -123,6 +123,7 @@ def main():
     meta0 = json.loads((cap / "probe_metadata.json").read_text())
     cfg = ProbeConfig(sample_rate=float(capture_cfg["sample_rate"]), center_freq=float(capture_cfg["center_freq"]),
                       fft_len=int(meta0["fft_len"]), cp_len=int(meta0["cp_len"]),
+                      active_carrier_count=int(meta0.get("active_carrier_count", capture_cfg.get("active_carrier_count", 52))),
                       probe_rate_hz=float(meta0["probe_rate_hz"]), tx_scale=float(meta0["tx_scale"]),
                       pilot_repeats_per_tx=int(meta0.get("pilot_repeats_per_tx", 1)),
                       frame_format=str(meta0.get("frame_format", "wifi_like_stf_ltf_tdm_mimo")),

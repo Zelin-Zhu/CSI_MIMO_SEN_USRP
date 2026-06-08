@@ -45,6 +45,7 @@ class DualRxSpectrumViewer(gr.top_block, Qt.QWidget):
         gain: float,
         antenna: str,
         fft_size: int,
+        active_carrier_count: int,
     ):
         gr.top_block.__init__(self, "Dual-channel B210 RX spectrum viewer")
         Qt.QWidget.__init__(self)
@@ -58,6 +59,7 @@ class DualRxSpectrumViewer(gr.top_block, Qt.QWidget):
         self.gain = gain
         self.antenna = antenna
         self.fft_size = fft_size
+        self.active_carrier_count = active_carrier_count
         self.probe_config = self._make_probe_config(center_freq, sample_rate)
 
         root_layout = Qt.QVBoxLayout(self)
@@ -170,6 +172,7 @@ class DualRxSpectrumViewer(gr.top_block, Qt.QWidget):
             center_freq=center_freq,
             fft_len=CFG.fft_len,
             cp_len=CFG.cp_len,
+            active_carrier_count=self.active_carrier_count,
             probe_rate_hz=CFG.probe_rate_hz,
             tx_scale=CFG.tx_scale,
             seed=CFG.seed,
@@ -234,6 +237,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gain", type=float, default=float(defaults["gain"]))
     parser.add_argument("--antenna", default=str(defaults["antenna"]))
     parser.add_argument("--fft-size", type=int, default=int(defaults["fft_size"]))
+    parser.add_argument("--active-carrier-count", type=int, default=int(defaults["active_carrier_count"]))
     return parser.parse_args()
 
 
@@ -248,6 +252,7 @@ def main() -> None:
         gain=args.gain,
         antenna=args.antenna,
         fft_size=args.fft_size,
+        active_carrier_count=args.active_carrier_count,
     )
     tb.start()
     tb.show()

@@ -12,6 +12,7 @@ class ProbeConfig:
     center_freq: float = 1890e6  # Change to a locally permitted RF frequency.
     fft_len: int = 64
     cp_len: int = 16
+    active_carrier_count: int = 52
     probe_rate_hz: float = 50.0
     tx_scale: float = 0.20
     pilot_repeats_per_tx: int = 4
@@ -30,7 +31,12 @@ class ProbeConfig:
 
     @property
     def active_carriers(self) -> np.ndarray:
-        return np.array(list(range(-26, 0)) + list(range(1, 27)), dtype=np.int32)
+        if self.active_carrier_count % 2 != 0:
+            raise ValueError("active_carrier_count must be even.")
+        if self.active_carrier_count < 2 or self.active_carrier_count > 52:
+            raise ValueError("active_carrier_count must be in the range [2, 52].")
+        half = self.active_carrier_count // 2
+        return np.array(list(range(-half, 0)) + list(range(1, half + 1)), dtype=np.int32)
 
     @property
     def subcarrier_spacing_hz(self) -> float:
@@ -77,6 +83,7 @@ DEFAULT_PROJECT_CONFIG: dict[str, dict[str, Any]] = {
     "frame": {
         "fft_len": CFG.fft_len,
         "cp_len": CFG.cp_len,
+        "active_carrier_count": CFG.active_carrier_count,
         "probe_rate_hz": CFG.probe_rate_hz,
         "tx_scale": CFG.tx_scale,
         "pilot_repeats_per_tx": CFG.pilot_repeats_per_tx,
@@ -154,6 +161,7 @@ def runtime_defaults(section: str, path: str | Path = CONFIG_PATH) -> dict[str, 
     }
     frame_defaults = {
         "probe_rate": frame["probe_rate_hz"],
+        "active_carrier_count": frame.get("active_carrier_count", CFG.active_carrier_count),
         "tx_scale": frame["tx_scale"],
         "pilot_repeats_per_tx": frame["pilot_repeats_per_tx"],
         "frame_format": frame["frame_format"],
@@ -200,6 +208,7 @@ def runtime_defaults(section: str, path: str | Path = CONFIG_PATH) -> dict[str, 
             "gain": radio["rx_gain"],
             "antenna": devices["antenna"],
             "fft_size": spectrum["fft_size"],
+            "active_carrier_count": frame.get("active_carrier_count", CFG.active_carrier_count),
         }
     if section == "csi":
         return {
@@ -230,7 +239,7 @@ def _with_cp(useful_td: np.ndarray, cfg: ProbeConfig = CFG) -> np.ndarray:
 
 def _training_values(cfg: ProbeConfig = CFG) -> np.ndarray:
     # 52-value BPSK pattern in the style of the 802.11 long training field.
-    values = np.array(
+    full_values = np.array(
         [
             1, 1, -1, -1, 1, 1, -1, 1, -1, 1, 1, 1, 1,
             1, 1, -1, -1, 1, 1, -1, 1, -1, 1, 1, 1, 1,
@@ -239,6 +248,9 @@ def _training_values(cfg: ProbeConfig = CFG) -> np.ndarray:
         ],
         dtype=np.complex64,
     )
+    full_carriers = np.array(list(range(-26, 0)) + list(range(1, 27)), dtype=np.int32)
+    selected = np.isin(full_carriers, cfg.active_carriers)
+    values = full_values[selected]
     if len(values) != len(cfg.active_carriers):
         raise ValueError("Training sequence length must match active carriers.")
     return values

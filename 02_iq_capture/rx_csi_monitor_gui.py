@@ -168,6 +168,7 @@ class CsiMonitorWindow(Qt.QWidget):
         max_frames_display: int,
         analysis_seconds: float,
         probe_rate: float,
+        active_carrier_count: int,
         tx_scale: float,
         pilot_repeats_per_tx: int,
         frame_format: str,
@@ -188,6 +189,7 @@ class CsiMonitorWindow(Qt.QWidget):
             center_freq=center_freq,
             fft_len=CFG.fft_len,
             cp_len=CFG.cp_len,
+            active_carrier_count=active_carrier_count,
             probe_rate_hz=probe_rate,
             tx_scale=tx_scale,
             pilot_repeats_per_tx=pilot_repeats_per_tx,
@@ -584,6 +586,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-frame-ratio", type=float, default=float(defaults["min_frame_ratio"]))
     parser.add_argument("--max-frames-display", type=int, default=int(defaults["max_frames_display"]))
     parser.add_argument("--probe-rate", type=float, default=float(defaults.get("probe_rate", tx_defaults["probe_rate"])))
+    parser.add_argument("--active-carrier-count", type=int, default=int(defaults.get("active_carrier_count", tx_defaults["active_carrier_count"])))
     parser.add_argument("--tx-scale", type=float, default=float(defaults.get("tx_scale", tx_defaults["tx_scale"])))
     parser.add_argument(
         "--pilot-repeats-per-tx",
@@ -612,6 +615,7 @@ def main() -> None:
         max_frames_display=args.max_frames_display,
         analysis_seconds=args.analysis_seconds,
         probe_rate=args.probe_rate,
+        active_carrier_count=args.active_carrier_count,
         tx_scale=args.tx_scale,
         pilot_repeats_per_tx=args.pilot_repeats_per_tx,
         frame_format=args.frame_format,

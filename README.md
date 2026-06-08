@@ -12,7 +12,9 @@ workflow into three stages:
 The current target setup is two USRP B210 devices, one for 2-channel TX and one
 for 2-channel RX. The default configuration uses a clean VERT900-compatible test
 point at 1890 MHz, 20 MS/s sampling, and a WiFi-like HT-LTF sounding frame for
-2x2 CSI.
+2x2 CSI. The default active subcarrier count is reduced to 24 carriers for the
+current low-SNR RF bring-up tests; set `frame.active_carrier_count` back to 52
+for full-width WiFi-like experiments.
 
 ## Repository Layout
 
@@ -87,6 +89,15 @@ checks whether STF/L-LTF/HT-LTF are generated with the expected power:
 python3 02_iq_capture/check_tx_waveform_regions.py --tx-chain-mode tx0_only
 python3 02_iq_capture/check_tx_waveform_regions.py --tx-chain-mode both
 ```
+
+To test a narrower occupied band, edit `config/default_config.json`:
+
+```json
+"active_carrier_count": 24
+```
+
+With 20 MS/s and FFT=64, 24 active carriers occupy about 7.5 MHz instead of the
+52-carrier span of about 16.25 MHz.
 
 Single-TX isolation test:
 

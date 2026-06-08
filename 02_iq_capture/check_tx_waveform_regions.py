@@ -56,6 +56,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--freq", type=float, default=float(defaults["freq"]))
     p.add_argument("--rate", type=float, default=float(defaults["rate"]))
     p.add_argument("--probe-rate", type=float, default=float(defaults["probe_rate"]))
+    p.add_argument("--active-carrier-count", type=int, default=int(defaults["active_carrier_count"]))
     p.add_argument("--tx-scale", type=float, default=float(defaults["tx_scale"]))
     p.add_argument("--pilot-repeats-per-tx", type=int, default=int(defaults["pilot_repeats_per_tx"]))
     p.add_argument("--frame-format", default=str(defaults["frame_format"]))
@@ -76,6 +77,7 @@ def main() -> None:
         center_freq=args.freq,
         fft_len=CFG.fft_len,
         cp_len=CFG.cp_len,
+        active_carrier_count=args.active_carrier_count,
         probe_rate_hz=args.probe_rate,
         tx_scale=args.tx_scale,
         pilot_repeats_per_tx=args.pilot_repeats_per_tx,
