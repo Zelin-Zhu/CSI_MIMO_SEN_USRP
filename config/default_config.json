@@ -15,7 +15,7 @@
     "cp_len": 16,
     "active_carrier_count": 24,
     "probe_rate_hz": 10000.0,
-    "tx_scale": 0.7,
+    "tx_scale": 0.9,
     "pilot_repeats_per_tx": 4,
     "frame_format": "wifi_ht20_2x2_ltf_sounding",
     "sync_tx_mode": "both",
