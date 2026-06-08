@@ -288,6 +288,14 @@ def _scale_waveform_parts(cfg: ProbeConfig, parts: list[np.ndarray]) -> float:
     return cfg.tx_scale / peak
 
 
+def _match_rms(source: np.ndarray, reference: np.ndarray) -> np.ndarray:
+    source_rms = float(np.sqrt(np.mean(np.abs(source) ** 2)))
+    reference_rms = float(np.sqrt(np.mean(np.abs(reference) ** 2)))
+    if source_rms <= 0 or reference_rms <= 0:
+        raise RuntimeError("Cannot RMS-match an empty or all-zero waveform part.")
+    return (source * (reference_rms / source_rms)).astype(np.complex64)
+
+
 def make_legacy_tdm_waveforms(cfg: ProbeConfig = CFG):
     if cfg.tx_chain_mode not in {"both", "tx0_only", "tx1_only"}:
         raise ValueError("tx_chain_mode must be 'both', 'tx0_only', or 'tx1_only'")
@@ -295,7 +303,7 @@ def make_legacy_tdm_waveforms(cfg: ProbeConfig = CFG):
         raise ValueError("pilot_repeats_per_tx must be at least 1")
     training_freq_raw, training_useful_raw = _ltf_useful_raw(cfg)
     pilot_freq_raw, pilot_useful_raw = _pilot_symbol_raw(cfg)
-    short_raw = _short_training(cfg)
+    short_raw = _match_rms(_short_training(cfg), training_useful_raw)
     digital_scale = _scale_waveform_parts(cfg, [short_raw, training_useful_raw, pilot_useful_raw])
     short_training = (digital_scale * short_raw).astype(np.complex64)
     training_useful = (digital_scale * training_useful_raw).astype(np.complex64)
@@ -346,6 +354,7 @@ def make_legacy_tdm_waveforms(cfg: ProbeConfig = CFG):
         "digital_scale": float(digital_scale),
         "short_training_len": stf_len,
         "short_training_repeats": SHORT_TRAINING_REPEATS,
+        "short_training_rms_matched_to_ltf": True,
         "long_training_cp_len": LONG_TRAINING_CP_LEN,
         "long_training_len": len(long_training),
         "sync_training_len": len(sync_training),
@@ -372,7 +381,7 @@ def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
     if cfg.tx_chain_mode not in {"both", "tx0_only", "tx1_only"}:
         raise ValueError("tx_chain_mode must be 'both', 'tx0_only', or 'tx1_only'")
     training_freq_raw, training_useful_raw = _ltf_useful_raw(cfg)
-    short_raw = _short_training(cfg)
+    short_raw = _match_rms(_short_training(cfg), training_useful_raw)
     digital_scale = _scale_waveform_parts(cfg, [short_raw, training_useful_raw])
     short_training = (digital_scale * short_raw).astype(np.complex64)
     ltf_useful = (digital_scale * training_useful_raw).astype(np.complex64)
@@ -422,6 +431,7 @@ def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
         "digital_scale": float(digital_scale),
         "short_training_len": stf_len,
         "short_training_repeats": SHORT_TRAINING_REPEATS,
+        "short_training_rms_matched_to_ltf": True,
         "long_training_cp_len": LONG_TRAINING_CP_LEN,
         "legacy_ltf_len": len(legacy_ltf),
         "sync_training_len": len(short_training) + len(legacy_ltf),

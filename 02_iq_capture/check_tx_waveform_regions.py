@@ -144,7 +144,7 @@ def main() -> None:
     print(f"TX waveform check written to {summary_path}")
     for tx in ("tx0", "tx1"):
         print(f"{tx}:")
-        for name in ("l_ltf1_useful", "l_ltf2_useful", "ht_ltf1_useful", "ht_ltf2_useful", "guard"):
+        for name in ("stf", "l_ltf1_useful", "l_ltf2_useful", "ht_ltf1_useful", "ht_ltf2_useful", "guard"):
             item = summary[tx][name]
             print(f"  {name:15s} rms={item['rms']:.6f}, power={item['power_db']:.1f} dB")
         for name in ("l_ltf1_useful", "ht_ltf1_useful", "ht_ltf2_useful"):
