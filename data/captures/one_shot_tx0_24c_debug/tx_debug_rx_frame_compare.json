@@ -1,0 +1,326 @@
+{
+  "capture_dir": "data/captures/one_shot_tx0_24c_debug",
+  "expected_layout_samples": {
+    "stf": [
+      0,
+      160
+    ],
+    "l_ltf": [
+      160,
+      320
+    ],
+    "ht_ltf1": [
+      320,
+      400
+    ],
+    "ht_ltf2": [
+      400,
+      480
+    ],
+    "occupied": [
+      0,
+      480
+    ],
+    "guard": [
+      480,
+      2000
+    ]
+  },
+  "files": {
+    "tx_debug_tx0": {
+      "path": "data/captures/one_shot_tx0_24c_debug/tx_debug_tx0.fc32",
+      "sample_count": 128000,
+      "folded_frame_count": 64,
+      "floor_db": -200.0,
+      "peak_db": -3.098040819168091,
+      "region_summary": {
+        "stf": {
+          "start": 0,
+          "end": 160,
+          "length": 160,
+          "mean_db": -3.09804105758667,
+          "max_db": -3.098040819168091
+        },
+        "l_ltf_cp": {
+          "start": 160,
+          "end": 192,
+          "length": 32,
+          "mean_db": -28.304325103759766,
+          "max_db": -20.576725006103516
+        },
+        "l_ltf1": {
+          "start": 192,
+          "end": 256,
+          "length": 64,
+          "mean_db": -28.304323196411133,
+          "max_db": -20.576725006103516
+        },
+        "l_ltf2": {
+          "start": 256,
+          "end": 320,
+          "length": 64,
+          "mean_db": -28.304323196411133,
+          "max_db": -20.576725006103516
+        },
+        "ht_ltf1": {
+          "start": 320,
+          "end": 400,
+          "length": 80,
+          "mean_db": -28.35672950744629,
+          "max_db": -20.576725006103516
+        },
+        "ht_ltf2": {
+          "start": 400,
+          "end": 480,
+          "length": 80,
+          "mean_db": -28.35672950744629,
+          "max_db": -20.576725006103516
+        },
+        "guard": {
+          "start": 480,
+          "end": 992,
+          "length": 512,
+          "mean_db": -200.0,
+          "max_db": -200.0
+        }
+      },
+      "top_high_power_segments": {
+        "floor_plus_0.5db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -19.91969871520996
+          }
+        ],
+        "floor_plus_1db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -19.91969871520996
+          }
+        ],
+        "floor_plus_2db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -19.91969871520996
+          }
+        ],
+        "floor_plus_3db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -19.91969871520996
+          }
+        ],
+        "floor_plus_6db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -19.91969871520996
+          }
+        ]
+      }
+    },
+    "tx_debug_tx1": {
+      "path": "data/captures/one_shot_tx0_24c_debug/tx_debug_tx1.fc32",
+      "sample_count": 128000,
+      "folded_frame_count": 64,
+      "floor_db": -200.0,
+      "peak_db": -200.0,
+      "region_summary": {
+        "stf": {
+          "start": 0,
+          "end": 160,
+          "length": 160,
+          "mean_db": -200.0,
+          "max_db": -200.0
+        },
+        "l_ltf_cp": {
+          "start": 160,
+          "end": 192,
+          "length": 32,
+          "mean_db": -200.0,
+          "max_db": -200.0
+        },
+        "l_ltf1": {
+          "start": 192,
+          "end": 256,
+          "length": 64,
+          "mean_db": -200.0,
+          "max_db": -200.0
+        },
+        "l_ltf2": {
+          "start": 256,
+          "end": 320,
+          "length": 64,
+          "mean_db": -200.0,
+          "max_db": -200.0
+        },
+        "ht_ltf1": {
+          "start": 320,
+          "end": 400,
+          "length": 80,
+          "mean_db": -200.0,
+          "max_db": -200.0
+        },
+        "ht_ltf2": {
+          "start": 400,
+          "end": 480,
+          "length": 80,
+          "mean_db": -200.0,
+          "max_db": -200.0
+        },
+        "guard": {
+          "start": 480,
+          "end": 992,
+          "length": 512,
+          "mean_db": -200.0,
+          "max_db": -200.0
+        }
+      },
+      "top_high_power_segments": {
+        "floor_plus_0.5db": [],
+        "floor_plus_1db": [],
+        "floor_plus_2db": [],
+        "floor_plus_3db": [],
+        "floor_plus_6db": []
+      }
+    },
+    "rx0": {
+      "path": "data/captures/one_shot_tx0_24c_debug/rx0.fc32",
+      "sample_count": 4000000,
+      "folded_frame_count": 2000,
+      "floor_db": -57.98768615722656,
+      "peak_db": -57.59059143066406,
+      "region_summary": {
+        "stf": {
+          "start": 0,
+          "end": 160,
+          "length": 160,
+          "mean_db": -58.009429931640625,
+          "max_db": -57.70225143432617
+        },
+        "l_ltf_cp": {
+          "start": 160,
+          "end": 192,
+          "length": 32,
+          "mean_db": -57.957645416259766,
+          "max_db": -57.76062774658203
+        },
+        "l_ltf1": {
+          "start": 192,
+          "end": 256,
+          "length": 64,
+          "mean_db": -57.929447174072266,
+          "max_db": -57.70917892456055
+        },
+        "l_ltf2": {
+          "start": 256,
+          "end": 320,
+          "length": 64,
+          "mean_db": -57.89966583251953,
+          "max_db": -57.67876052856445
+        },
+        "ht_ltf1": {
+          "start": 320,
+          "end": 400,
+          "length": 80,
+          "mean_db": -57.9356575012207,
+          "max_db": -57.683570861816406
+        },
+        "ht_ltf2": {
+          "start": 400,
+          "end": 480,
+          "length": 80,
+          "mean_db": -57.95012283325195,
+          "max_db": -57.684486389160156
+        },
+        "guard": {
+          "start": 480,
+          "end": 992,
+          "length": 512,
+          "mean_db": -57.94539260864258,
+          "max_db": -57.632591247558594
+        }
+      },
+      "top_high_power_segments": {
+        "floor_plus_0.5db": [],
+        "floor_plus_1db": [],
+        "floor_plus_2db": [],
+        "floor_plus_3db": [],
+        "floor_plus_6db": []
+      }
+    },
+    "rx1": {
+      "path": "data/captures/one_shot_tx0_24c_debug/rx1.fc32",
+      "sample_count": 4000000,
+      "folded_frame_count": 2000,
+      "floor_db": -56.679710388183594,
+      "peak_db": -56.29955291748047,
+      "region_summary": {
+        "stf": {
+          "start": 0,
+          "end": 160,
+          "length": 160,
+          "mean_db": -56.70624923706055,
+          "max_db": -56.45025634765625
+        },
+        "l_ltf_cp": {
+          "start": 160,
+          "end": 192,
+          "length": 32,
+          "mean_db": -56.663177490234375,
+          "max_db": -56.37232208251953
+        },
+        "l_ltf1": {
+          "start": 192,
+          "end": 256,
+          "length": 64,
+          "mean_db": -56.61101531982422,
+          "max_db": -56.29955291748047
+        },
+        "l_ltf2": {
+          "start": 256,
+          "end": 320,
+          "length": 64,
+          "mean_db": -56.609275817871094,
+          "max_db": -56.368247985839844
+        },
+        "ht_ltf1": {
+          "start": 320,
+          "end": 400,
+          "length": 80,
+          "mean_db": -56.61811447143555,
+          "max_db": -56.36211013793945
+        },
+        "ht_ltf2": {
+          "start": 400,
+          "end": 480,
+          "length": 80,
+          "mean_db": -56.65293502807617,
+          "max_db": -56.459938049316406
+        },
+        "guard": {
+          "start": 480,
+          "end": 992,
+          "length": 512,
+          "mean_db": -56.6470947265625,
+          "max_db": -56.339683532714844
+        }
+      },
+      "top_high_power_segments": {
+        "floor_plus_0.5db": [],
+        "floor_plus_1db": [],
+        "floor_plus_2db": [],
+        "floor_plus_3db": [],
+        "floor_plus_6db": []
+      }
+    }
+  }
+}
