@@ -1,0 +1,14 @@
+{
+  "uhd_args": "serial=3271260",
+  "center_freq": 1890000000.0,
+  "sample_rate": 20000000.0,
+  "rx_gain_db": 30.0,
+  "rx_antenna": "TX/RX",
+  "seconds": 0.2,
+  "total_samples_per_channel": 4000000,
+  "dtype": "complex64",
+  "frame_format": "wifi_ht20_2x2_ltf_sounding",
+  "sync_tx_mode": "both",
+  "tx_chain_mode": "tx0_only",
+  "active_carrier_count": 24
+}
