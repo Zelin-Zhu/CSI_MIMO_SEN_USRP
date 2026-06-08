@@ -9,6 +9,7 @@ TX_CHAIN_MODE="${2:-tx0_only}"
 CAPTURE_SECONDS="${3:-0.2}"
 TX_READY_TIMEOUT_SECONDS="${TX_READY_TIMEOUT_SECONDS:-20}"
 TX_WARMUP_SECONDS="${TX_WARMUP_SECONDS:-0.2}"
+TX_DEBUG_FRAMES="${TX_DEBUG_FRAMES:-64}"
 
 mkdir -p "$OUT_DIR"
 TX_LOG="$OUT_DIR/tx.log"
@@ -37,6 +38,8 @@ echo "Output directory: $OUT_DIR"
 echo "Starting TX first: tx_chain_mode=$TX_CHAIN_MODE"
 python3 -u 02_iq_capture/tx_mimo_probe.py \
   --tx-chain-mode "$TX_CHAIN_MODE" \
+  --debug-out-dir "$OUT_DIR" \
+  --debug-frames "$TX_DEBUG_FRAMES" \
   >"$TX_LOG" 2>&1 &
 TX_PID="$!"
 
@@ -76,5 +79,6 @@ echo "One-shot capture complete."
 echo "TX log: $TX_LOG"
 echo "RX log: $RX_LOG"
 echo "Raw IQ: $OUT_DIR/rx0.fc32 and $OUT_DIR/rx1.fc32"
+echo "TX debug IQ: $OUT_DIR/tx_debug_tx0.fc32 and $OUT_DIR/tx_debug_tx1.fc32"
 echo "Next extraction command:"
 echo "python3 03_csi_extraction/extract_csi_wifi_like.py --capture-dir $OUT_DIR --out-dir results/$(basename "$OUT_DIR")/wifi_like_debug"
