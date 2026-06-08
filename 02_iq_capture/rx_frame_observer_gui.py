@@ -266,6 +266,7 @@ class FrameObserverWindow(Qt.QWidget):
         frame_format: str,
         sync_tx_mode: str,
         tx_chain_mode: str,
+        tx1_cyclic_shift_samples: int,
     ):
         super().__init__()
         self.setWindowTitle("USRP B210 raw-IQ frame observer")
@@ -284,6 +285,7 @@ class FrameObserverWindow(Qt.QWidget):
             frame_format=frame_format,
             sync_tx_mode=sync_tx_mode,
             tx_chain_mode=tx_chain_mode,
+            tx1_cyclic_shift_samples=tx1_cyclic_shift_samples,
             seed=CFG.seed,
         )
         _, _, self.meta = make_waveforms(self.cfg)
@@ -302,7 +304,8 @@ class FrameObserverWindow(Qt.QWidget):
         self.status = Qt.QLabel(
             f"RX args={args!r}, freq={freq/1e6:.6f} MHz, rate={rate/1e6:.3f} MS/s, "
             f"gain={gain:.1f} dB, buffer={buffer_seconds:.3f}s, frame={self.cfg.frame_len} samples, "
-            f"occupied={self.meta['occupied_len']} samples, active={active_carrier_count}"
+            f"occupied={self.meta['occupied_len']} samples, active={active_carrier_count}, "
+            f"tx1_csd={tx1_cyclic_shift_samples} samples"
         )
         layout.addWidget(self.status)
 
@@ -445,6 +448,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--frame-format", default=str(defaults.get("frame_format", tx_defaults["frame_format"])))
     parser.add_argument("--sync-tx-mode", choices=["both", "tx0_only"], default=str(defaults.get("sync_tx_mode", tx_defaults["sync_tx_mode"])))
     parser.add_argument("--tx-chain-mode", choices=["both", "tx0_only", "tx1_only"], default=str(defaults.get("tx_chain_mode", tx_defaults["tx_chain_mode"])))
+    parser.add_argument("--tx1-cyclic-shift-samples", type=int, default=int(defaults.get("tx1_cyclic_shift_samples", tx_defaults["tx1_cyclic_shift_samples"])))
     return parser.parse_args()
 
 
@@ -467,6 +471,7 @@ def main() -> None:
         frame_format=args.frame_format,
         sync_tx_mode=args.sync_tx_mode,
         tx_chain_mode=args.tx_chain_mode,
+        tx1_cyclic_shift_samples=args.tx1_cyclic_shift_samples,
     )
     window.start()
     window.show()

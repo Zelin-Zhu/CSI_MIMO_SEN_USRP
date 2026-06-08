@@ -66,6 +66,7 @@ def parse_args() -> argparse.Namespace:
         choices=["both", "tx0_only", "tx1_only"],
         default=str(defaults["tx_chain_mode"]),
     )
+    p.add_argument("--tx1-cyclic-shift-samples", type=int, default=int(defaults["tx1_cyclic_shift_samples"]))
     p.add_argument("--out-dir", type=Path, default=Path("results/tx_waveform_check"))
     return p.parse_args()
 
@@ -84,6 +85,7 @@ def main() -> None:
         frame_format=args.frame_format,
         sync_tx_mode=args.sync_tx_mode,
         tx_chain_mode=args.tx_chain_mode,
+        tx1_cyclic_shift_samples=args.tx1_cyclic_shift_samples,
         seed=CFG.seed,
     )
     tx0, tx1, meta = make_waveforms(cfg)

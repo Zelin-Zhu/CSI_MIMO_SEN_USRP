@@ -19,7 +19,8 @@
     "pilot_repeats_per_tx": 4,
     "frame_format": "wifi_ht20_2x2_ltf_sounding",
     "sync_tx_mode": "both",
-    "tx_chain_mode": "both"
+    "tx_chain_mode": "both",
+    "tx1_cyclic_shift_samples": 4
   },
   "capture": {
     "seconds": 0.2,

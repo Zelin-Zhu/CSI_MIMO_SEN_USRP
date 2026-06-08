@@ -8,7 +8,7 @@ from scipy.signal import correlate, fftconvolve, find_peaks
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from common.frame_design import ProbeConfig, make_waveforms
+from common.frame_design import ProbeConfig, make_waveforms, solve_mimo_ht_ltf
 
 def normalized_corr_metric(x: np.ndarray, template: np.ndarray) -> np.ndarray:
     corr = correlate(x, template, mode="valid", method="fft")
@@ -53,18 +53,7 @@ def extract_one_frame(
         bins = np.array([int(k) % nfft for k in cfg.active_carriers], dtype=np.int32)
         x = reference_freq[bins]
         tx_chain_mode = str(getattr(cfg, "tx_chain_mode", "both"))
-        if tx_chain_mode == "both":
-            h_tx0 = (y1[bins] + y2[bins]) / (2.0 * x + 1e-12)
-            h_tx1 = (y1[bins] - y2[bins]) / (2.0 * x + 1e-12)
-        elif tx_chain_mode == "tx0_only":
-            h_tx0 = (y1[bins] + y2[bins]) / (2.0 * x + 1e-12)
-            h_tx1 = np.zeros_like(h_tx0)
-        elif tx_chain_mode == "tx1_only":
-            h_tx0 = np.zeros_like(y1[bins])
-            h_tx1 = (y1[bins] - y2[bins]) / (2.0 * x + 1e-12)
-        else:
-            raise ValueError(f"Unsupported tx_chain_mode: {tx_chain_mode}")
-        return np.stack([h_tx0, h_tx1], axis=0).astype(np.complex64), omega
+        return solve_mimo_ht_ltf(y1[bins], y2[bins], x, meta, tx_chain_mode, cfg), omega
 
     if "ltf1_offset" in meta and "ltf2_offset" in meta:
         ltf1_offset = int(meta["ltf1_offset"])
@@ -129,6 +118,7 @@ def main():
                       frame_format=str(meta0.get("frame_format", "wifi_like_stf_ltf_tdm_mimo")),
                       sync_tx_mode=str(meta0.get("sync_tx_mode", "both")),
                       tx_chain_mode=str(meta0.get("tx_chain_mode", "both")),
+                      tx1_cyclic_shift_samples=int(meta0.get("tx1_cyclic_shift_samples", 0)),
                       seed=int(meta0["seed"]))
     tx0, _, meta = make_waveforms(cfg)
     template = tx0[: int(meta["sync_training_len"])]
@@ -172,6 +162,7 @@ def main():
             "frame_starts_samples": starts, "probe_rate_hz": cfg.probe_rate_hz,
             "sync_channel": sync_channel,
             "frame_format": str(meta.get("frame_format", "unknown")),
+            "tx1_cyclic_shift_samples": int(meta.get("tx1_cyclic_shift_samples", 0)),
             "sync_metric_max_rx0": float(np.max(metric0)),
             "sync_metric_max_rx1": float(np.max(metric1)),
             "frame_start_mode": "free_running_peaks" if a.free_running_peaks else "fixed_grid_from_first_peak",

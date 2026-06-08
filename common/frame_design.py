@@ -19,6 +19,7 @@ class ProbeConfig:
     frame_format: str = "wifi_ht20_2x2_ltf_sounding"
     sync_tx_mode: str = "both"
     tx_chain_mode: str = "both"
+    tx1_cyclic_shift_samples: int = 4
     seed: int = 20260602
 
     @property
@@ -90,6 +91,7 @@ DEFAULT_PROJECT_CONFIG: dict[str, dict[str, Any]] = {
         "frame_format": CFG.frame_format,
         "sync_tx_mode": CFG.sync_tx_mode,
         "tx_chain_mode": CFG.tx_chain_mode,
+        "tx1_cyclic_shift_samples": CFG.tx1_cyclic_shift_samples,
     },
     "capture": {
         "seconds": 5.0,
@@ -167,6 +169,9 @@ def runtime_defaults(section: str, path: str | Path = CONFIG_PATH) -> dict[str, 
         "frame_format": frame["frame_format"],
         "sync_tx_mode": frame.get("sync_tx_mode", CFG.sync_tx_mode),
         "tx_chain_mode": frame.get("tx_chain_mode", CFG.tx_chain_mode),
+        "tx1_cyclic_shift_samples": frame.get(
+            "tx1_cyclic_shift_samples", CFG.tx1_cyclic_shift_samples
+        ),
     }
     if section == "tx":
         return {
@@ -235,6 +240,76 @@ def _freq_vector(values: np.ndarray, cfg: ProbeConfig = CFG) -> np.ndarray:
 def _with_cp(useful_td: np.ndarray, cfg: ProbeConfig = CFG) -> np.ndarray:
     useful_td = np.asarray(useful_td, dtype=np.complex64)
     return np.concatenate([useful_td[-cfg.cp_len:], useful_td]).astype(np.complex64)
+
+
+def cyclic_shift_phase(
+    cfg: ProbeConfig = CFG,
+    shift_samples: int | None = None,
+) -> np.ndarray:
+    """Frequency-domain phase ramp for an OFDM cyclic time shift.
+
+    With NumPy FFT conventions, multiplying subcarrier k by
+    exp(-j*2*pi*k*n_cs/Nfft) is equivalent to a cyclic delay of n_cs samples.
+    """
+    n_cs = cfg.tx1_cyclic_shift_samples if shift_samples is None else int(shift_samples)
+    bins = np.arange(cfg.fft_len, dtype=np.float64)
+    carriers = np.where(bins <= cfg.fft_len // 2, bins, bins - cfg.fft_len)
+    return np.exp(-1j * 2.0 * np.pi * carriers * n_cs / cfg.fft_len).astype(np.complex64)
+
+
+def _cyclic_shift_useful(useful_td: np.ndarray, cfg: ProbeConfig = CFG) -> np.ndarray:
+    if cfg.tx1_cyclic_shift_samples == 0:
+        return np.asarray(useful_td, dtype=np.complex64)
+    return np.roll(useful_td, int(cfg.tx1_cyclic_shift_samples)).astype(np.complex64)
+
+
+def mimo_ht_training_matrix(meta: dict[str, Any], cfg: ProbeConfig = CFG) -> np.ndarray:
+    """Return active-carrier 2x2 HT-LTF training matrices.
+
+    Shape is [active_carrier, ht_symbol, tx_chain]. Each matrix row maps
+    [H_TX0, H_TX1] into the normalized received HT-LTF observations.
+    """
+    nfft = int(meta.get("fft_len", cfg.fft_len))
+    active = np.asarray(meta.get("active_carriers", cfg.active_carriers), dtype=np.int32)
+    shift = int(meta.get("tx1_cyclic_shift_samples", 0))
+    bins = np.array([int(k) % nfft for k in active], dtype=np.int32)
+    carrier_numbers = np.where(bins <= nfft // 2, bins, bins - nfft).astype(np.float64)
+    d = np.exp(-1j * 2.0 * np.pi * carrier_numbers * shift / nfft).astype(np.complex64)
+    matrix = np.empty((len(active), 2, 2), dtype=np.complex64)
+    matrix[:, 0, 0] = 1.0
+    matrix[:, 0, 1] = d
+    matrix[:, 1, 0] = 1.0
+    matrix[:, 1, 1] = -d
+    return matrix
+
+
+def solve_mimo_ht_ltf(
+    y1_active: np.ndarray,
+    y2_active: np.ndarray,
+    x_active: np.ndarray,
+    meta: dict[str, Any],
+    tx_chain_mode: str = "both",
+    cfg: ProbeConfig = CFG,
+) -> np.ndarray:
+    """Decode two HT-LTF symbols into [tx, active_carrier] CSI."""
+    z = np.stack(
+        [
+            y1_active / (x_active + 1e-12),
+            y2_active / (x_active + 1e-12),
+        ],
+        axis=1,
+    ).astype(np.complex64)
+    matrix = mimo_ht_training_matrix(meta, cfg)
+    h = np.empty((2, len(x_active)), dtype=np.complex64)
+    for index in range(len(x_active)):
+        h[:, index] = np.linalg.solve(matrix[index], z[index])
+    if tx_chain_mode == "tx0_only":
+        h[1, :] = 0.0
+    elif tx_chain_mode == "tx1_only":
+        h[0, :] = 0.0
+    elif tx_chain_mode != "both":
+        raise ValueError(f"Unsupported tx_chain_mode: {tx_chain_mode}")
+    return h.astype(np.complex64)
 
 
 def _training_values(cfg: ProbeConfig = CFG) -> np.ndarray:
@@ -386,7 +461,11 @@ def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
     short_training = (digital_scale * short_raw).astype(np.complex64)
     ltf_useful = (digital_scale * training_useful_raw).astype(np.complex64)
 
-    # Legacy L-LTF: common timing/CFO reference, sent identically by both TX chains.
+    tx1_ltf_useful = _cyclic_shift_useful(ltf_useful, cfg)
+    tx1_short_training = _cyclic_shift_useful(short_training, cfg)
+
+    # Legacy L-LTF: common timing/CFO reference. TX1 uses CSD so the common
+    # sync field is less likely to cancel over the air when both TX chains run.
     legacy_ltf = np.concatenate(
         [
             ltf_useful[-LONG_TRAINING_CP_LEN:],
@@ -394,11 +473,21 @@ def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
             ltf_useful,
         ]
     ).astype(np.complex64)
+    tx1_legacy_ltf = np.concatenate(
+        [
+            tx1_ltf_useful[-LONG_TRAINING_CP_LEN:],
+            tx1_ltf_useful,
+            tx1_ltf_useful,
+        ]
+    ).astype(np.complex64)
 
-    # HT/VHT-style 2-stream orthogonal MIMO training core. The two HT-LTF
-    # symbols use a 2x2 Walsh matrix so each RX can solve TX0/TX1 channels.
+    # HT/VHT-style 2-stream orthogonal MIMO training core. TX1 carries a CSD
+    # phase ramp D[k], so the two observations are H0 +/- H1*D instead of a
+    # fragile H0 +/- H1 difference across all carriers.
     ht_ltf1 = _with_cp(ltf_useful, cfg)
     ht_ltf2 = _with_cp(ltf_useful, cfg)
+    tx1_ht_ltf1 = _with_cp(tx1_ltf_useful, cfg)
+    tx1_ht_ltf2 = _with_cp(tx1_ltf_useful, cfg)
     ht_ltf_start = len(short_training) + len(legacy_ltf)
     ht_ltf1_offset = ht_ltf_start
     ht_ltf2_offset = ht_ltf_start + cfg.sym_len
@@ -408,12 +497,13 @@ def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
         raise ValueError(f"Probe period too short: frame_len={cfg.frame_len}, occupied={occupied}")
     guard = np.zeros(guard_len, dtype=np.complex64)
     sync_training = np.concatenate([short_training, legacy_ltf]).astype(np.complex64)
+    tx1_sync_training = np.concatenate([tx1_short_training, tx1_legacy_ltf]).astype(np.complex64)
     if cfg.sync_tx_mode == "both":
-        tx1_sync = sync_training
+        tx1_sync = tx1_sync_training
     else:
         tx1_sync = np.zeros(len(sync_training), dtype=np.complex64)
     tx0 = np.concatenate([sync_training, ht_ltf1, ht_ltf2, guard]).astype(np.complex64)
-    tx1 = np.concatenate([tx1_sync, ht_ltf1, -ht_ltf2, guard]).astype(np.complex64)
+    tx1 = np.concatenate([tx1_sync, tx1_ht_ltf1, -tx1_ht_ltf2, guard]).astype(np.complex64)
     if cfg.tx_chain_mode == "tx0_only":
         tx1 = np.zeros_like(tx1)
     elif cfg.tx_chain_mode == "tx1_only":
@@ -437,7 +527,14 @@ def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
         "sync_training_len": len(short_training) + len(legacy_ltf),
         "ltf1_offset": ltf_start + LONG_TRAINING_CP_LEN,
         "ltf2_offset": ltf_start + LONG_TRAINING_CP_LEN + cfg.fft_len,
-        "mimo_ltf_matrix": [[1, 1], [1, -1]],
+        "mimo_ltf_matrix": "carrier_dependent_csd_2x2",
+        "mimo_ltf_formula": [
+            "Y1[k] / X[k] = H0[k] + H1[k] * D[k]",
+            "Y2[k] / X[k] = H0[k] - H1[k] * D[k]",
+            "D[k] = exp(-j*2*pi*k*tx1_cyclic_shift_samples/Nfft)",
+        ],
+        "tx1_cyclic_shift_samples": int(cfg.tx1_cyclic_shift_samples),
+        "tx1_cyclic_shift_seconds": float(cfg.tx1_cyclic_shift_samples / cfg.sample_rate),
         "ht_ltf1_offset": ht_ltf1_offset,
         "ht_ltf2_offset": ht_ltf2_offset,
         "ht_ltf_offsets": [ht_ltf1_offset, ht_ltf2_offset],

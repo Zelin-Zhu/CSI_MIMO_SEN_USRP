@@ -174,6 +174,7 @@ class CsiMonitorWindow(Qt.QWidget):
         frame_format: str,
         sync_tx_mode: str,
         tx_chain_mode: str,
+        tx1_cyclic_shift_samples: int,
     ):
         super().__init__()
         self.setWindowTitle("USRP B210 realtime CSI monitor")
@@ -196,6 +197,7 @@ class CsiMonitorWindow(Qt.QWidget):
             frame_format=frame_format,
             sync_tx_mode=sync_tx_mode,
             tx_chain_mode=tx_chain_mode,
+            tx1_cyclic_shift_samples=tx1_cyclic_shift_samples,
             seed=CFG.seed,
         )
         self.analysis_samples = max(
@@ -297,6 +299,7 @@ class CsiMonitorWindow(Qt.QWidget):
             f"frame_format={self.cfg.frame_format}, "
             f"sync_tx_mode={self.cfg.sync_tx_mode}, "
             f"tx_chain_mode={self.cfg.tx_chain_mode}, template={self.template_source}, "
+            f"tx1_csd={self.cfg.tx1_cyclic_shift_samples} samples, "
             f"probe_rate={self.cfg.probe_rate_hz:.1f} Hz, tx_scale={self.cfg.tx_scale:.2f}, "
             f"pilot_repeats_per_tx={self.cfg.pilot_repeats_per_tx}, "
             f"spacing={self.cfg.subcarrier_spacing_hz / 1e3:.3f} kHz, "
@@ -596,6 +599,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--frame-format", default=str(defaults.get("frame_format", tx_defaults["frame_format"])))
     parser.add_argument("--sync-tx-mode", choices=["both", "tx0_only"], default=str(defaults.get("sync_tx_mode", tx_defaults["sync_tx_mode"])))
     parser.add_argument("--tx-chain-mode", choices=["both", "tx0_only", "tx1_only"], default=str(defaults.get("tx_chain_mode", tx_defaults["tx_chain_mode"])))
+    parser.add_argument("--tx1-cyclic-shift-samples", type=int, default=int(defaults.get("tx1_cyclic_shift_samples", tx_defaults["tx1_cyclic_shift_samples"])))
     return parser.parse_args()
 
 
@@ -621,6 +625,7 @@ def main() -> None:
         frame_format=args.frame_format,
         sync_tx_mode=args.sync_tx_mode,
         tx_chain_mode=args.tx_chain_mode,
+        tx1_cyclic_shift_samples=args.tx1_cyclic_shift_samples,
     )
     window.start()
     window.show()

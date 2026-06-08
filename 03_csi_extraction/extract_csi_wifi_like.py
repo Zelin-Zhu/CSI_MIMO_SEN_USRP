@@ -12,7 +12,7 @@ from scipy.signal import correlate, fftconvolve, find_peaks
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from common.frame_design import ProbeConfig, make_waveforms, runtime_defaults
+from common.frame_design import ProbeConfig, make_waveforms, runtime_defaults, solve_mimo_ht_ltf
 
 
 def normalized_corr_metric(x: np.ndarray, template: np.ndarray) -> np.ndarray:
@@ -200,6 +200,7 @@ def load_capture(capture_dir: Path):
         frame_format=str(meta0.get("frame_format", "wifi_like_stf_ltf_tdm_mimo")),
         sync_tx_mode=str(meta0.get("sync_tx_mode", "both")),
         tx_chain_mode=str(meta0.get("tx_chain_mode", "both")),
+        tx1_cyclic_shift_samples=int(meta0.get("tx1_cyclic_shift_samples", 0)),
         seed=int(meta0["seed"]),
     )
     _, _, meta = make_waveforms(cfg)
@@ -418,18 +419,14 @@ def extract_frame_ht_ltf(
         y_symbols.append(np.fft.fft(symbol))
     y1, y2 = y_symbols
     x = training_freq[bins]
-    if cfg.tx_chain_mode == "both":
-        h_tx0 = (y1[bins] + y2[bins]) / (2.0 * x + 1e-12)
-        h_tx1 = (y1[bins] - y2[bins]) / (2.0 * x + 1e-12)
-    elif cfg.tx_chain_mode == "tx0_only":
-        h_tx0 = (y1[bins] + y2[bins]) / (2.0 * x + 1e-12)
-        h_tx1 = np.zeros_like(h_tx0)
-    elif cfg.tx_chain_mode == "tx1_only":
-        h_tx0 = np.zeros_like(y1[bins])
-        h_tx1 = (y1[bins] - y2[bins]) / (2.0 * x + 1e-12)
-    else:
-        raise ValueError(f"Unsupported tx_chain_mode: {cfg.tx_chain_mode}")
-    h = np.stack([h_tx0, h_tx1], axis=0).astype(np.complex64)
+    h = solve_mimo_ht_ltf(
+        y1[bins],
+        y2[bins],
+        x,
+        meta,
+        tx_chain_mode=cfg.tx_chain_mode,
+        cfg=cfg,
+    )
     return h, cfo, delta, ltf_metric
 
 
@@ -562,6 +559,7 @@ def main() -> None:
         frame_format=cfg.frame_format,
         sync_tx_mode=cfg.sync_tx_mode,
         tx_chain_mode="both",
+        tx1_cyclic_shift_samples=cfg.tx1_cyclic_shift_samples,
         seed=cfg.seed,
     )
     template, _, _ = make_waveforms(template_cfg)
@@ -653,6 +651,7 @@ def main() -> None:
             "out_dir": str(out_dir),
             "frame_format": str(meta["frame_format"]),
             "tx_chain_mode": str(meta.get("tx_chain_mode", "both")),
+            "tx1_cyclic_shift_samples": int(meta.get("tx1_cyclic_shift_samples", 0)),
             "H_shape": list(h_raw.shape),
             "layout": "[frame, rx, tx, active_carrier]",
             "active_carriers": cfg.active_carriers.tolist(),
