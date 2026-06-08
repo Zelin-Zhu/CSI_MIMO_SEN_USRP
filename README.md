@@ -68,6 +68,26 @@ Capture raw IQ:
 bash 02_iq_capture/capture_raw_iq.sh
 ```
 
+One-shot 0.2 s capture. This starts TX first, waits until the TX log contains
+`Transmitting. Press Ctrl+C to stop.`, then captures dual-RX IQ:
+
+```bash
+# Default: tx0_only, 0.2 s, timestamped output directory.
+bash 02_iq_capture/capture_once_tx_then_rx.sh
+
+# Explicit output directory, TX-chain mode, and duration.
+bash 02_iq_capture/capture_once_tx_then_rx.sh data/captures/one_shot_tx0 tx0_only 0.2
+bash 02_iq_capture/capture_once_tx_then_rx.sh data/captures/one_shot_both both 0.2
+```
+
+Before blaming the RF link, verify the locally generated TX frame power. This
+checks whether STF/L-LTF/HT-LTF are generated with the expected power:
+
+```bash
+python3 02_iq_capture/check_tx_waveform_regions.py --tx-chain-mode tx0_only
+python3 02_iq_capture/check_tx_waveform_regions.py --tx-chain-mode both
+```
+
 Single-TX isolation test:
 
 ```bash
