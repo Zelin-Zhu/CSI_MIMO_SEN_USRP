@@ -16,6 +16,16 @@ Start realtime monitor:
 bash 02_iq_capture/start_rx_monitor.sh
 ```
 
+Start raw IQ frame observer:
+
+```bash
+bash 02_iq_capture/start_rx_frame_observer.sh
+```
+
+The frame observer uses a 0.05 s rolling buffer by default, folds the IQ by the
+configured frame length, and displays STF/L-LTF/HT-LTF/guard power before CSI
+extraction.
+
 Capture raw IQ:
 
 ```bash

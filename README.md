@@ -56,6 +56,16 @@ Optionally monitor CSI detection:
 bash 02_iq_capture/start_rx_monitor.sh
 ```
 
+Before saving CSI captures, observe the raw IQ frame structure directly:
+
+```bash
+bash 02_iq_capture/start_rx_frame_observer.sh
+```
+
+This GUI uses a 0.05 s rolling IQ buffer by default. It folds the raw IQ by the
+configured frame length and checks whether the expected 480-sample occupied
+region and HT-LTF blocks are visible above guard.
+
 If packet correlation stays near the noise floor, test single-chain sync while
 keeping 2x2 HT-LTF sounding:
 
