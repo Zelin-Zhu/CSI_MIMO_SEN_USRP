@@ -1,0 +1,375 @@
+{
+  "capture_dir": "data/captures/mimo_24c_scale09_0p1s",
+  "expected_layout_samples": {
+    "stf": [
+      0,
+      160
+    ],
+    "l_ltf": [
+      160,
+      320
+    ],
+    "ht_ltf1": [
+      320,
+      400
+    ],
+    "ht_ltf2": [
+      400,
+      480
+    ],
+    "occupied": [
+      0,
+      480
+    ],
+    "guard": [
+      480,
+      2000
+    ]
+  },
+  "files": {
+    "tx_debug_tx0": {
+      "path": "data/captures/mimo_24c_scale09_0p1s/tx_debug_tx0.fc32",
+      "sample_count": 128000,
+      "folded_frame_count": 64,
+      "floor_db": -200.0,
+      "peak_db": -0.915147602558136,
+      "region_summary": {
+        "stf": {
+          "start": 0,
+          "end": 160,
+          "length": 160,
+          "mean_db": -5.757949352264404,
+          "max_db": -5.757949352264404
+        },
+        "l_ltf_cp": {
+          "start": 160,
+          "end": 192,
+          "length": 32,
+          "mean_db": -8.64274787902832,
+          "max_db": -0.915147602558136
+        },
+        "l_ltf1": {
+          "start": 192,
+          "end": 256,
+          "length": 64,
+          "mean_db": -8.642746925354004,
+          "max_db": -0.915147602558136
+        },
+        "l_ltf2": {
+          "start": 256,
+          "end": 320,
+          "length": 64,
+          "mean_db": -8.642746925354004,
+          "max_db": -0.915147602558136
+        },
+        "ht_ltf1": {
+          "start": 320,
+          "end": 400,
+          "length": 80,
+          "mean_db": -8.695150375366211,
+          "max_db": -0.915147602558136
+        },
+        "ht_ltf2": {
+          "start": 400,
+          "end": 480,
+          "length": 80,
+          "mean_db": -8.695150375366211,
+          "max_db": -0.915147602558136
+        },
+        "guard": {
+          "start": 480,
+          "end": 992,
+          "length": 512,
+          "mean_db": -200.0,
+          "max_db": -200.0
+        }
+      },
+      "top_high_power_segments": {
+        "floor_plus_0.5db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -7.698616027832031
+          }
+        ],
+        "floor_plus_1db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -7.698616027832031
+          }
+        ],
+        "floor_plus_2db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -7.698616027832031
+          }
+        ],
+        "floor_plus_3db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -7.698616027832031
+          }
+        ],
+        "floor_plus_6db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -7.698616027832031
+          }
+        ]
+      }
+    },
+    "tx_debug_tx1": {
+      "path": "data/captures/mimo_24c_scale09_0p1s/tx_debug_tx1.fc32",
+      "sample_count": 128000,
+      "folded_frame_count": 64,
+      "floor_db": -200.0,
+      "peak_db": -0.915147602558136,
+      "region_summary": {
+        "stf": {
+          "start": 0,
+          "end": 160,
+          "length": 160,
+          "mean_db": -5.757949352264404,
+          "max_db": -5.757949352264404
+        },
+        "l_ltf_cp": {
+          "start": 160,
+          "end": 192,
+          "length": 32,
+          "mean_db": -8.64274787902832,
+          "max_db": -0.915147602558136
+        },
+        "l_ltf1": {
+          "start": 192,
+          "end": 256,
+          "length": 64,
+          "mean_db": -8.642746925354004,
+          "max_db": -0.915147602558136
+        },
+        "l_ltf2": {
+          "start": 256,
+          "end": 320,
+          "length": 64,
+          "mean_db": -8.642746925354004,
+          "max_db": -0.915147602558136
+        },
+        "ht_ltf1": {
+          "start": 320,
+          "end": 400,
+          "length": 80,
+          "mean_db": -8.695150375366211,
+          "max_db": -0.915147602558136
+        },
+        "ht_ltf2": {
+          "start": 400,
+          "end": 480,
+          "length": 80,
+          "mean_db": -8.695150375366211,
+          "max_db": -0.915147602558136
+        },
+        "guard": {
+          "start": 480,
+          "end": 992,
+          "length": 512,
+          "mean_db": -200.0,
+          "max_db": -200.0
+        }
+      },
+      "top_high_power_segments": {
+        "floor_plus_0.5db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -7.698616027832031
+          }
+        ],
+        "floor_plus_1db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -7.698616027832031
+          }
+        ],
+        "floor_plus_2db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -7.698616027832031
+          }
+        ],
+        "floor_plus_3db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -7.698616027832031
+          }
+        ],
+        "floor_plus_6db": [
+          {
+            "start": 0,
+            "end": 480,
+            "length": 480,
+            "mean_db": -7.698616027832031
+          }
+        ]
+      }
+    },
+    "rx0": {
+      "path": "data/captures/mimo_24c_scale09_0p1s/rx0.fc32",
+      "sample_count": 2000000,
+      "folded_frame_count": 1000,
+      "floor_db": -57.34709930419922,
+      "peak_db": -56.84593963623047,
+      "region_summary": {
+        "stf": {
+          "start": 0,
+          "end": 160,
+          "length": 160,
+          "mean_db": -57.333229064941406,
+          "max_db": -57.00053405761719
+        },
+        "l_ltf_cp": {
+          "start": 160,
+          "end": 192,
+          "length": 32,
+          "mean_db": -57.39366149902344,
+          "max_db": -57.210548400878906
+        },
+        "l_ltf1": {
+          "start": 192,
+          "end": 256,
+          "length": 64,
+          "mean_db": -57.37908935546875,
+          "max_db": -57.14720153808594
+        },
+        "l_ltf2": {
+          "start": 256,
+          "end": 320,
+          "length": 64,
+          "mean_db": -57.376731872558594,
+          "max_db": -57.05549240112305
+        },
+        "ht_ltf1": {
+          "start": 320,
+          "end": 400,
+          "length": 80,
+          "mean_db": -57.334678649902344,
+          "max_db": -56.95793914794922
+        },
+        "ht_ltf2": {
+          "start": 400,
+          "end": 480,
+          "length": 80,
+          "mean_db": -57.41484451293945,
+          "max_db": -57.12627029418945
+        },
+        "guard": {
+          "start": 480,
+          "end": 992,
+          "length": 512,
+          "mean_db": -57.41095733642578,
+          "max_db": -57.05596160888672
+        }
+      },
+      "top_high_power_segments": {
+        "floor_plus_0.5db": [
+          {
+            "start": 1382,
+            "end": 1383,
+            "length": 1,
+            "mean_db": -56.84593963623047
+          }
+        ],
+        "floor_plus_1db": [],
+        "floor_plus_2db": [],
+        "floor_plus_3db": [],
+        "floor_plus_6db": []
+      }
+    },
+    "rx1": {
+      "path": "data/captures/mimo_24c_scale09_0p1s/rx1.fc32",
+      "sample_count": 2000000,
+      "folded_frame_count": 1000,
+      "floor_db": -56.70928955078125,
+      "peak_db": -56.191490173339844,
+      "region_summary": {
+        "stf": {
+          "start": 0,
+          "end": 160,
+          "length": 160,
+          "mean_db": -56.678611755371094,
+          "max_db": -56.28158187866211
+        },
+        "l_ltf_cp": {
+          "start": 160,
+          "end": 192,
+          "length": 32,
+          "mean_db": -56.742958068847656,
+          "max_db": -56.44091033935547
+        },
+        "l_ltf1": {
+          "start": 192,
+          "end": 256,
+          "length": 64,
+          "mean_db": -56.70489501953125,
+          "max_db": -56.474361419677734
+        },
+        "l_ltf2": {
+          "start": 256,
+          "end": 320,
+          "length": 64,
+          "mean_db": -56.73052978515625,
+          "max_db": -56.191490173339844
+        },
+        "ht_ltf1": {
+          "start": 320,
+          "end": 400,
+          "length": 80,
+          "mean_db": -56.684234619140625,
+          "max_db": -56.28285217285156
+        },
+        "ht_ltf2": {
+          "start": 400,
+          "end": 480,
+          "length": 80,
+          "mean_db": -56.721885681152344,
+          "max_db": -56.4262809753418
+        },
+        "guard": {
+          "start": 480,
+          "end": 992,
+          "length": 512,
+          "mean_db": -56.742218017578125,
+          "max_db": -56.4039306640625
+        }
+      },
+      "top_high_power_segments": {
+        "floor_plus_0.5db": [
+          {
+            "start": 257,
+            "end": 258,
+            "length": 1,
+            "mean_db": -56.191490173339844
+          }
+        ],
+        "floor_plus_1db": [],
+        "floor_plus_2db": [],
+        "floor_plus_3db": [],
+        "floor_plus_6db": []
+      }
+    }
+  }
+}
