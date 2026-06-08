@@ -26,6 +26,17 @@ The frame observer uses a 0.05 s rolling buffer by default, folds the IQ by the
 configured frame length, and displays STF/L-LTF/HT-LTF/guard power before CSI
 extraction.
 
+Start MIMO link observer:
+
+```bash
+bash 02_iq_capture/start_rx_mimo_link_observer.sh --link-mode 2x2
+bash 02_iq_capture/start_rx_mimo_link_observer.sh --link-mode 1x2
+bash 02_iq_capture/start_rx_mimo_link_observer.sh --link-mode siso
+```
+
+This GUI uses the same 0.05 s rolling buffer and adds a link matrix view for
+`RX0/RX1 <- TX0/TX1`, so it can be used for SISO, 1x2, and 2x2 setup checks.
+
 Capture raw IQ:
 
 ```bash

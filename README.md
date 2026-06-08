@@ -66,6 +66,14 @@ This GUI uses a 0.05 s rolling IQ buffer by default. It folds the raw IQ by the
 configured frame length and checks whether the expected 480-sample occupied
 region and HT-LTF blocks are visible above guard.
 
+For SISO, 1x2, and 2x2 link-quality views, use the MIMO link observer:
+
+```bash
+bash 02_iq_capture/start_rx_mimo_link_observer.sh --link-mode 2x2
+bash 02_iq_capture/start_rx_mimo_link_observer.sh --link-mode 1x2
+bash 02_iq_capture/start_rx_mimo_link_observer.sh --link-mode siso
+```
+
 If packet correlation stays near the noise floor, test single-chain sync while
 keeping 2x2 HT-LTF sounding:
 
