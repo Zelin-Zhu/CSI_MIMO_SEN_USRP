@@ -462,22 +462,15 @@ def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
     ltf_useful = (digital_scale * training_useful_raw).astype(np.complex64)
 
     tx1_ltf_useful = _cyclic_shift_useful(ltf_useful, cfg)
-    tx1_short_training = _cyclic_shift_useful(short_training, cfg)
 
-    # Legacy L-LTF: common timing/CFO reference. TX1 uses CSD so the common
-    # sync field is less likely to cancel over the air when both TX chains run.
+    # Legacy L-LTF: common timing/CFO reference. Keep this sync field
+    # unshifted in this experiment so packet detection and folded-frame
+    # alignment remain stable; CSD is applied only to HT-LTF sounding below.
     legacy_ltf = np.concatenate(
         [
             ltf_useful[-LONG_TRAINING_CP_LEN:],
             ltf_useful,
             ltf_useful,
-        ]
-    ).astype(np.complex64)
-    tx1_legacy_ltf = np.concatenate(
-        [
-            tx1_ltf_useful[-LONG_TRAINING_CP_LEN:],
-            tx1_ltf_useful,
-            tx1_ltf_useful,
         ]
     ).astype(np.complex64)
 
@@ -497,9 +490,8 @@ def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
         raise ValueError(f"Probe period too short: frame_len={cfg.frame_len}, occupied={occupied}")
     guard = np.zeros(guard_len, dtype=np.complex64)
     sync_training = np.concatenate([short_training, legacy_ltf]).astype(np.complex64)
-    tx1_sync_training = np.concatenate([tx1_short_training, tx1_legacy_ltf]).astype(np.complex64)
     if cfg.sync_tx_mode == "both":
-        tx1_sync = tx1_sync_training
+        tx1_sync = sync_training
     else:
         tx1_sync = np.zeros(len(sync_training), dtype=np.complex64)
     tx0 = np.concatenate([sync_training, ht_ltf1, ht_ltf2, guard]).astype(np.complex64)
@@ -535,6 +527,7 @@ def make_wifi_ht20_2x2_ltf_waveforms(cfg: ProbeConfig = CFG):
         ],
         "tx1_cyclic_shift_samples": int(cfg.tx1_cyclic_shift_samples),
         "tx1_cyclic_shift_seconds": float(cfg.tx1_cyclic_shift_samples / cfg.sample_rate),
+        "tx1_cyclic_shift_applied_to": ["ht_ltf"],
         "ht_ltf1_offset": ht_ltf1_offset,
         "ht_ltf2_offset": ht_ltf2_offset,
         "ht_ltf_offsets": [ht_ltf1_offset, ht_ltf2_offset],
